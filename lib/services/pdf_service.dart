@@ -18,6 +18,7 @@ class PdfService {
     ShopModel? shop,
     double? paidAmount,
     String? paymentStatus,
+    String? paymentType,
     pw.ImageProvider? logo,
   }) async {
     final pdf = pw.Document();
@@ -35,11 +36,23 @@ class PdfService {
           pw.SizedBox(height: 20),
           pw.Divider(thickness: 0.5),
           pw.SizedBox(height: 20),
-          _buildInfoSection(record, agentName, agentId, shop, effectiveStatus),
+          _buildInfoSection(
+            record,
+            agentName,
+            agentId,
+            shop,
+            effectiveStatus,
+            paymentType,
+          ),
           pw.SizedBox(height: 30),
           _buildItemsTable(record.items),
           pw.SizedBox(height: 30),
-          _buildSummary(record, effectivePaidAmount),
+          _buildSummary(
+            record,
+            effectivePaidAmount,
+            effectiveStatus,
+            paymentType,
+          ),
           pw.Spacer(),
           _buildFooter(),
         ],
@@ -100,6 +113,7 @@ class PdfService {
     String agentId,
     ShopModel? shop,
     String status,
+    String? paymentType,
   ) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -147,10 +161,11 @@ class PdfService {
                 ),
               ),
               pw.SizedBox(height: 4),
+              pw.Text('Invoice No: ${record.id}'),
               pw.Text(
                 'Date & Time: ${DateFormat('M/d/y h:mm:ss a').format(record.createdAt)}',
               ),
-              pw.Text('Payment Type: CASH'),
+              pw.Text('Payment Type: ${paymentType ?? 'CASH'}'),
               pw.Text('Status: ${status.toUpperCase()}'),
             ],
           ),
@@ -161,13 +176,12 @@ class PdfService {
 
   static pw.Widget _buildItemsTable(List<SalesRecordItem> items) {
     final headers = [
-      'No',
-      'SKU',
-      'Item Name',
-      'QTY',
-      'Rate (Rs)',
-      'Discount',
-      'Net Value (Rs)',
+      'Item Code',
+      'Description',
+      'MRP',
+      'Order Qty',
+      'Price',
+      'Value',
     ];
 
     return pw.TableHelper.fromTextArray(
@@ -175,64 +189,70 @@ class PdfService {
       data: List<List<dynamic>>.generate(items.length, (index) {
         final item = items[index];
         return [
-          index + 1,
-          item.productId.length > 8
-              ? '${item.productId.substring(0, 8)}...'
+          item.productId.length > 10
+              ? '${item.productId.substring(0, 10)}...'
               : item.productId,
           item.productName,
-          item.quantity,
           _currency.format(item.price),
-          '${item.marginPercentage.toStringAsFixed(0)}%',
+          item.quantity,
+          _currency.format(item.agentPrice),
           _currency.format(item.totalAgentPrice),
         ];
       }),
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+      cellStyle: const pw.TextStyle(fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: tableHeaderGray),
-      cellHeight: 30,
+      cellHeight: 25,
       cellAlignments: {
         0: pw.Alignment.centerLeft,
         1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerRight,
         3: pw.Alignment.centerRight,
         4: pw.Alignment.centerRight,
         5: pw.Alignment.centerRight,
-        6: pw.Alignment.centerRight,
       },
     );
   }
 
-  static pw.Widget _buildSummary(SalesRecordModel record, double paidAmount) {
-    final subTotal = record.items.fold(
-      0.0,
-      (sum, item) => sum + item.totalPrice,
+  static pw.Widget _buildSummary(
+    SalesRecordModel record,
+    double paidAmount,
+    String status,
+    String? paymentType,
+  ) {
+    final totalNoItems = record.items.fold(
+      0,
+      (sum, item) => sum + item.quantity,
     );
-    final balance = record.totalAmount - paidAmount;
+    final grossTotal = record.items.fold(
+      0.0,
+      (sum, item) => sum + item.totalAgentPrice,
+    );
+    final returnAmount = record.totalReturnAmount;
+    final totalValue = grossTotal - returnAmount;
+    final balance = totalValue - paidAmount;
 
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.end,
       children: [
         pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'SUMMARY',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            ),
-          ],
-        ),
-        pw.SizedBox(width: 100),
-        pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
-            _buildSummaryRow('SUB TOTAL', _currency.format(subTotal)),
+            _buildSummaryRow('Total No. Items', totalNoItems.toString()),
+            _buildSummaryRow('Gross Total', _currency.format(grossTotal)),
+            _buildSummaryRow('Return Amount', _currency.format(returnAmount)),
             _buildSummaryRow(
-              'NET TOTAL',
-              _currency.format(record.totalAmount),
+              'Total Value',
+              _currency.format(totalValue),
               isBold: true,
             ),
-            _buildSummaryRow('PAYMENT RECEIVED', _currency.format(paidAmount)),
+            // _buildSummaryRow(
+            //   'Payment Type',
+            //   '${paymentType ?? 'CASH'} - ${status.replaceAll('_', ' ').toUpperCase()}',
+            // ),
+            _buildSummaryRow('Payment Received', _currency.format(paidAmount)),
             _buildSummaryRow(
-              'BALANCE',
+              'Balance',
               _currency.format(balance),
               isBold: true,
             ),
@@ -309,6 +329,7 @@ class PdfService {
     ShopModel? shop,
     double? paidAmount,
     String? paymentStatus,
+    String? paymentType,
     pw.ImageProvider? logo,
   }) async {
     final pdfBytes = await generateInvoice(
@@ -318,12 +339,14 @@ class PdfService {
       shop: shop,
       paidAmount: paidAmount,
       paymentStatus: paymentStatus,
+      paymentType: paymentType,
       logo: logo,
     );
 
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: 'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
+      filename:
+          'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
     );
   }
 }

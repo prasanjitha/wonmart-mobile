@@ -9,6 +9,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/toast_helper.dart';
 import '../../widgets/premium_background.dart';
+import 'package:wonmart/models/route_model.dart';
+import 'package:wonmart/services/route_service.dart';
 
 class AddShopScreen extends StatefulWidget {
   const AddShopScreen({super.key});
@@ -31,7 +33,35 @@ class _AddShopScreenState extends State<AddShopScreen> {
   bool _isSaving = false;
 
   final ShopService _shopService = ShopService();
+  final RouteService _routeService = RouteService();
   final _uuid = const Uuid();
+
+  String? _selectedRouteId;
+  List<RouteModel> _routes = [];
+  bool _isLoadingRoutes = true;
+
+  String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    try {
+      final routes = await _routeService.getAgentRoutes(_agentId);
+      setState(() {
+        _routes = routes;
+        _isLoadingRoutes = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingRoutes = false);
+        ToastHelper.showTopRightToast(context, 'Failed to load routes');
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -98,7 +128,11 @@ class _AddShopScreenState extends State<AddShopScreen> {
     final phone = _phoneController.text.trim();
     final whatsapp = _whatsappController.text.trim();
     final email = _emailController.text.trim();
-
+    
+    if (_selectedRouteId == null) {
+      ToastHelper.showTopRightToast(context, 'Please select a route');
+      return;
+    }
     if (name.isEmpty) {
       ToastHelper.showTopRightToast(context, 'Shop name is required');
       return;
@@ -124,6 +158,7 @@ class _AddShopScreenState extends State<AddShopScreen> {
         phone: phone,
         whatsapp: whatsapp,
         email: email,
+        routeId: _selectedRouteId,
         hasGps: _gpsEnabled,
         latitude: _latitude,
         longitude: _longitude,
@@ -173,6 +208,47 @@ class _AddShopScreenState extends State<AddShopScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildSection('Select Route *', [
+                _isLoadingRoutes
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primaryRed,
+                        ),
+                      )
+                    : DropdownButtonFormField<String>(
+                        dropdownColor: AppColors.cardDarkBackground,
+                        value: _selectedRouteId,
+                        hint: Text(
+                          'Select Route',
+                          style: GoogleFonts.inter(color: AppColors.textMuted),
+                        ),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.route_outlined,
+                              color: AppColors.primaryRed),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 0,
+                            vertical: 12,
+                          ),
+                        ),
+                        items: _routes.map((r) {
+                          return DropdownMenuItem(
+                            value: r.id,
+                            child: Text(
+                              r.name,
+                              style:
+                                  GoogleFonts.inter(color: AppColors.textLight),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedRouteId = val);
+                        },
+                      ),
+              ]),
+              const SizedBox(height: 16),
               _buildSection('Shop Details', [
                 CustomTextField(
                   hintText: 'Shop Name *',

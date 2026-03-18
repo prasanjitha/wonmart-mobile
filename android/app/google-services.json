@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "731264639241",
-    "project_id": "wonmart-46508",
-    "storage_bucket": "wonmart-46508.firebasestorage.app"
+    "project_number": "189616598522",
+    "project_id": "wonmart-45cac",
+    "storage_bucket": "wonmart-45cac.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:731264639241:android:24684f6362d2e335eff3d8",
+        "mobilesdk_app_id": "1:189616598522:android:7af672b3c262cfbbc8c843",
         "android_client_info": {
           "package_name": "com.example.wonmart"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAwo_7-KgPxL9QYjF6K9RjiboLNcBTFzBc"
+          "current_key": "AIzaSyBBz3icvbkxrcT6M-dwTfAyDXiMTE97b3w"
         }
       ],
       "services": {

@@ -301,10 +301,18 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _amountColumn('Total', record.totalAmount, AppColors.textLight),
+                if (record.totalReturnAmount > 0)
+                  _amountColumn(
+                    'Return',
+                    record.totalReturnAmount,
+                    Colors.orangeAccent,
+                  ),
                 _amountColumn('Paid', record.paidAmount, Colors.greenAccent),
                 _amountColumn(
                   'Balance',
-                  record.totalAmount - record.paidAmount,
+                  record.totalAmount -
+                      record.totalReturnAmount -
+                      record.paidAmount,
                   isCompleted ? AppColors.textMuted : AppColors.primaryRed,
                 ),
               ],
@@ -321,7 +329,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                icon: const Icon(Icons.picture_as_pdf, color: Colors.white70, size: 18),
+                icon: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Colors.white70,
+                  size: 18,
+                ),
                 label: Text(
                   'Invoice',
                   style: GoogleFonts.inter(

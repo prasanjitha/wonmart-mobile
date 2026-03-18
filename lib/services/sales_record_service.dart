@@ -38,11 +38,24 @@ class SalesRecordService {
     required String paymentStatus,
     required double paidAmount,
   }) async {
-    // 1. Deduct Stock
+    // 1. Deduct Stock for ordered items
     final Map<String, int> deductions = {
       for (var item in record.items) item.productId: item.quantity,
     };
-    await StoreService().deductStock(agentId, deductions);
+    if (deductions.isNotEmpty) {
+      await StoreService().deductStock(agentId, deductions);
+    }
+
+    // 1b. Add Stock for returned items (only if isAddedToStock is true)
+    final Map<String, int> additions = {
+      for (var item in record.returnItems.where(
+        (i) => i.isAddedToStock == true,
+      ))
+        item.productId: item.quantity,
+    };
+    if (additions.isNotEmpty) {
+      await StoreService().addStock(agentId, additions);
+    }
 
     // 2. Generate Doc ID for Sales Record
     final docId = _db.collection('dummy').doc().id;
@@ -51,7 +64,9 @@ class SalesRecordService {
       shopId: record.shopId,
       shopName: record.shopName,
       items: record.items,
+      returnItems: record.returnItems,
       totalAmount: record.totalAmount,
+      totalReturnAmount: record.totalReturnAmount,
       createdAt: record.createdAt,
       paymentStatus: paymentStatus,
       paidAmount: paidAmount,
@@ -90,6 +105,21 @@ class SalesRecordService {
       return itemMap;
     }).toList();
 
+    final List<Map<String, dynamic>> modifiedReturnItems = record.returnItems
+        .map((item) {
+          final itemMap = item.toMap();
+          if (itemMap.containsKey('agentPrice')) {
+            itemMap['shopPrice'] = itemMap['agentPrice'];
+            itemMap.remove('agentPrice');
+          }
+          if (itemMap.containsKey('totalAgentPrice')) {
+            itemMap['totalShopPrice'] = itemMap['totalAgentPrice'];
+            itemMap.remove('totalAgentPrice');
+          }
+          return itemMap;
+        })
+        .toList();
+
     final paymentData = {
       // Model requirements for backwards compatibility
       'id': paymentId,
@@ -99,15 +129,17 @@ class SalesRecordService {
       'agentId': agentId,
       'agentName': agentName,
       'paymentType': paymentType,
-      
+
       // Explicit fields required from screenshot
       'createdAt': FieldValue.serverTimestamp(),
       'items': modifiedItems,
+      'returnItems': modifiedReturnItems,
       'paidAmount': paidAmount,
       'paymentStatus': paymentStatus,
       'shopId': record.shopId,
       'shopName': record.shopName,
       'totalAmount': record.totalAmount,
+      'totalReturnAmount': record.totalReturnAmount,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -135,13 +167,14 @@ class SalesRecordService {
     // Update daily collection aggregate
     if (paidAmount > 0) {
       final now = DateTime.now();
-      final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final dateString =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final dailyRef = _db
           .collection('agents')
           .doc(agentId)
           .collection('daily_collections')
           .doc(dateString);
-          
+
       batch.set(dailyRef, {
         'date': dateString,
         'collectedAmount': FieldValue.increment(paidAmount),
@@ -207,8 +240,9 @@ class SalesRecordService {
     for (var doc in snap.docs) {
       final data = doc.data() as Map<String, dynamic>;
       final totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+      final totalReturnAmount = (data['totalReturnAmount'] ?? 0.0).toDouble();
       final paidAmount = (data['paidAmount'] ?? 0.0).toDouble();
-      totalOutstanding += (totalAmount - paidAmount);
+      totalOutstanding += (totalAmount - totalReturnAmount - paidAmount);
     }
     return totalOutstanding;
   }
@@ -272,13 +306,13 @@ class SalesRecordService {
         .where('createdAt', isLessThan: Timestamp.fromDate(endOfDay))
         .snapshots()
         .map((snap) {
-      double total = 0;
-      for (var doc in snap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        total += (data['totalAmount'] ?? 0.0).toDouble();
-      }
-      return total;
-    });
+          double total = 0;
+          for (var doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            total += (data['totalAmount'] ?? 0.0).toDouble();
+          }
+          return total;
+        });
   }
 
   Stream<double> watchOutstandingBalance(String agentId) {
@@ -287,8 +321,9 @@ class SalesRecordService {
       for (var doc in snap.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+        final totalReturnAmount = (data['totalReturnAmount'] ?? 0.0).toDouble();
         final paidAmount = (data['paidAmount'] ?? 0.0).toDouble();
-        totalOutstanding += (totalAmount - paidAmount);
+        totalOutstanding += (totalAmount - totalReturnAmount - paidAmount);
       }
       return totalOutstanding;
     });
@@ -307,13 +342,13 @@ class SalesRecordService {
         .where('createdAt', isLessThan: Timestamp.fromDate(endOfMonth))
         .snapshots()
         .map((snap) {
-      double total = 0;
-      for (var doc in snap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        total += (data['totalAmount'] ?? 0.0).toDouble();
-      }
-      return total;
-    });
+          double total = 0;
+          for (var doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            total += (data['totalAmount'] ?? 0.0).toDouble();
+          }
+          return total;
+        });
   }
 
   Future<List<SalesRecordModel>> getSalesRecordsInRange(
@@ -326,7 +361,10 @@ class SalesRecordService {
 
     final snap = await _salesRecords(agentId)
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endOfPeriod))
+        .where(
+          'createdAt',
+          isLessThanOrEqualTo: Timestamp.fromDate(endOfPeriod),
+        )
         .get();
     return snap.docs.map((d) => SalesRecordModel.fromFirestore(d)).toList();
   }

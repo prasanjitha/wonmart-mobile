@@ -15,3 +15,7 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 flutter build apk --release
+flutter build apk --split-per-abi
+
+
+Me page ekata returns ganna section ekak add karanna. [dropdonn eke product eka select karanna danna, price eka input ganna, quentity eka , ]

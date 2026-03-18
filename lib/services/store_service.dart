@@ -42,6 +42,21 @@ class StoreService {
     await batch.commit();
   }
 
+  Future<void> addStock(String agentId, Map<String, int> additions) async {
+    final batch = _db.batch();
+    final storeRef = _agentStore(agentId);
+
+    for (var entry in additions.entries) {
+      final docRef = storeRef.doc(entry.key);
+      batch.set(docRef, {
+        'quantity': FieldValue.increment(entry.value),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
+  }
+
   Stream<List<StoreHistoryModel>> watchStoreHistory(String agentId) {
     return _storeHistory(agentId)
         .orderBy('timestamp', descending: true)

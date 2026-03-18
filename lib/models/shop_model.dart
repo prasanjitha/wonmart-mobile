@@ -9,6 +9,7 @@ class ShopModel {
   final String phone;
   final String whatsapp;
   final String email;
+  final String? routeId;
   final bool hasGps;
   final double? latitude;
   final double? longitude;
@@ -23,6 +24,7 @@ class ShopModel {
     required this.phone,
     required this.whatsapp,
     required this.email,
+    this.routeId,
     this.hasGps = false,
     this.latitude,
     this.longitude,
@@ -40,6 +42,7 @@ class ShopModel {
       phone: data['phone'] ?? '',
       whatsapp: data['whatsapp'] ?? '',
       email: data['email'] ?? '',
+      routeId: data['routeId'],
       hasGps: data['hasGps'] ?? false,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
@@ -55,6 +58,7 @@ class ShopModel {
         'phone': phone,
         'whatsapp': whatsapp,
         'email': email,
+        'routeId': routeId,
         'hasGps': hasGps,
         'latitude': latitude,
         'longitude': longitude,
@@ -67,6 +71,7 @@ class ShopModel {
     String? phone,
     String? whatsapp,
     String? email,
+    String? routeId,
     bool? hasGps,
     double? latitude,
     double? longitude,
@@ -80,6 +85,7 @@ class ShopModel {
         phone: phone ?? this.phone,
         whatsapp: whatsapp ?? this.whatsapp,
         email: email ?? this.email,
+        routeId: routeId ?? this.routeId,
         hasGps: hasGps ?? this.hasGps,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,

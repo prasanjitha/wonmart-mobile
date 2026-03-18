@@ -2,15 +2,76 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/export_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/premium_background.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/toast_helper.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final String agentName;
   const ProfileScreen({super.key, required this.agentName});
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
   String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? 'Unknown';
+  final ExportService _exportService = ExportService();
+  bool _isExporting = false;
+
+  Future<void> _exportWithDateRange(String type) async {
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: DateTimeRange(
+        start: DateTime.now().subtract(const Duration(days: 30)),
+        end: DateTime.now(),
+      ),
+      firstDate: DateTime(2023),
+      lastDate: DateTime(2030),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.primaryRed,
+            onPrimary: Colors.white,
+            surface: AppColors.cardDarkBackground,
+            onSurface: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked == null) return;
+
+    setState(() => _isExporting = true);
+    try {
+      if (type == 'sales') {
+        await _exportService.exportSalesRecords(_agentId, picked.start, picked.end);
+      } else {
+        await _exportService.exportReturnRecords(_agentId, picked.start, picked.end);
+      }
+      if (mounted) ToastHelper.showTopRightToast(context, 'Export ready!');
+    } catch (e) {
+      if (mounted) ToastHelper.showTopRightToast(context, 'Export failed: $e');
+    }
+    setState(() => _isExporting = false);
+  }
+
+  Future<void> _exportDirect(String type) async {
+    setState(() => _isExporting = true);
+    try {
+      if (type == 'inventory') {
+        await _exportService.exportStoreInventory(_agentId);
+      } else {
+        await _exportService.exportShopList(_agentId);
+      }
+      if (mounted) ToastHelper.showTopRightToast(context, 'Export ready!');
+    } catch (e) {
+      if (mounted) ToastHelper.showTopRightToast(context, 'Export failed: $e');
+    }
+    setState(() => _isExporting = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +95,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         ),
-        body: Padding(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -72,7 +133,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     _buildDetailRow(
                       'Agent Name',
-                      agentName,
+                      widget.agentName,
                       Icons.person_outline,
                     ),
                     const Padding(
@@ -84,6 +145,93 @@ class ProfileScreen extends StatelessWidget {
                       _agentId.toUpperCase(),
                       Icons.badge_outlined,
                     ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Export Data Section
+              GlassCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.file_download_outlined, color: Colors.greenAccent, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Export Data',
+                              style: GoogleFonts.inter(
+                                color: AppColors.textLight,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Backup your data as CSV files',
+                              style: GoogleFonts.inter(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isExporting)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: CircularProgressIndicator(color: Colors.greenAccent)),
+                      )
+                    else
+                      Column(
+                        children: [
+                          _buildExportButton(
+                            icon: Icons.receipt_long_outlined,
+                            label: 'Sales Records',
+                            subtitle: 'Select date range',
+                            color: AppColors.primaryRed,
+                            onTap: () => _exportWithDateRange('sales'),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildExportButton(
+                            icon: Icons.assignment_return_outlined,
+                            label: 'Return Records',
+                            subtitle: 'Select date range',
+                            color: Colors.orange,
+                            onTap: () => _exportWithDateRange('returns'),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildExportButton(
+                            icon: Icons.inventory_2_outlined,
+                            label: 'Store Inventory',
+                            subtitle: 'Current stock snapshot',
+                            color: Colors.blueAccent,
+                            onTap: () => _exportDirect('inventory'),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildExportButton(
+                            icon: Icons.store_mall_directory_outlined,
+                            label: 'Shop List',
+                            subtitle: 'All registered shops',
+                            color: Colors.purpleAccent,
+                            onTap: () => _exportDirect('shops'),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -131,7 +279,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               // Logout Button
               Container(
@@ -174,9 +322,59 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExportButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      color: AppColors.textLight,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: color, size: 20),
+          ],
         ),
       ),
     );

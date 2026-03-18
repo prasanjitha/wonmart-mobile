@@ -6,6 +6,9 @@ import '../../services/shop_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/toast_helper.dart';
+import '../../models/route_model.dart';
+import '../../services/route_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class EditShopScreen extends StatefulWidget {
   final ShopModel shop;
@@ -29,6 +32,13 @@ class _EditShopScreenState extends State<EditShopScreen> {
   bool _isSaving = false;
 
   final ShopService _shopService = ShopService();
+  final RouteService _routeService = RouteService();
+
+  String? _selectedRouteId;
+  List<RouteModel> _routes = [];
+  bool _isLoadingRoutes = true;
+
+  String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
@@ -41,6 +51,23 @@ class _EditShopScreenState extends State<EditShopScreen> {
     _gpsEnabled = widget.shop.hasGps;
     _latitude = widget.shop.latitude;
     _longitude = widget.shop.longitude;
+    _selectedRouteId = widget.shop.routeId;
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    try {
+      final routes = await _routeService.getAgentRoutes(_agentId);
+      setState(() {
+        _routes = routes;
+        _isLoadingRoutes = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingRoutes = false);
+        ToastHelper.showTopRightToast(context, 'Failed to load routes');
+      }
+    }
   }
 
   @override
@@ -105,6 +132,12 @@ class _EditShopScreenState extends State<EditShopScreen> {
     final name = _nameController.text.trim();
     final address = _addressController.text.trim();
     final phone = _phoneController.text.trim();
+    
+    if (_selectedRouteId == null) {
+      ToastHelper.showTopRightToast(context, 'Please select a route');
+      return;
+    }
+
     if (name.isEmpty || address.isEmpty || phone.isEmpty) {
       ToastHelper.showTopRightToast(
         context,
@@ -120,6 +153,7 @@ class _EditShopScreenState extends State<EditShopScreen> {
         'phone': phone,
         'whatsapp': _whatsappController.text.trim(),
         'email': _emailController.text.trim(),
+        'routeId': _selectedRouteId,
         'hasGps': _gpsEnabled,
         'latitude': _latitude,
         'longitude': _longitude,
@@ -191,6 +225,49 @@ class _EditShopScreenState extends State<EditShopScreen> {
                 ],
               ),
             ),
+
+            _buildSectionCard([
+              _isLoadingRoutes
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryRed,
+                      ),
+                    )
+                  : DropdownButtonFormField<String>(
+                      dropdownColor: AppColors.cardDarkBackground,
+                      value: _selectedRouteId,
+                      hint: Text(
+                        'Select Route *',
+                        style: GoogleFonts.inter(color: AppColors.textMuted),
+                      ),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.route_outlined,
+                            color: AppColors.primaryRed),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: _routes.map((r) {
+                        return DropdownMenuItem(
+                          value: r.id,
+                          child: Text(
+                            r.name,
+                            style:
+                                GoogleFonts.inter(color: AppColors.textLight),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => _selectedRouteId = val);
+                      },
+                    ),
+            ]),
+
+            const SizedBox(height: 16),
 
             _buildSectionCard([
               CustomTextField(

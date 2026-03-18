@@ -160,6 +160,30 @@ class PdfInvoiceService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      pw.Text(
+                        'SUB TOTAL: Rs ${_currency.format(record.items.fold(0.0, (sum, i) => sum + i.totalPrice))}',
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                      pw.Text(
+                        'NET TOTAL: Rs ${_currency.format(record.totalAmount)}',
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                      if (record.totalReturnAmount > 0) ...[
+                        pw.Text(
+                          'RETURNS: Rs ${_currency.format(record.totalReturnAmount)}',
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                      ],
+                      pw.SizedBox(height: 4),
                       pw.Container(
                         padding: const pw.EdgeInsets.symmetric(
                           horizontal: 16,
@@ -173,14 +197,14 @@ class PdfInvoiceService {
                           mainAxisSize: pw.MainAxisSize.min,
                           children: [
                             pw.Text(
-                              'GRAND TOTAL: ',
+                              'TOTAL DUE: ',
                               style: pw.TextStyle(
                                 fontSize: 12,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
                             pw.Text(
-                              'Rs ${_currency.format(record.totalAmount)}',
+                              'Rs ${_currency.format(record.totalAmount - record.totalReturnAmount)}',
                               style: pw.TextStyle(
                                 fontSize: 16,
                                 fontWeight: pw.FontWeight.bold,
@@ -287,10 +311,14 @@ class PdfInvoiceService {
   }) async {
     final pdf = pw.Document();
     final date = DateFormat('dd MMM yyyy, hh:mm a').format(payment.createdAt);
-    final subTotal = record.items.fold(0.0, (sum, item) => sum + item.totalPrice);
+    final subTotal = record.items.fold(
+      0.0,
+      (sum, item) => sum + item.totalPrice,
+    );
     final prevPaid = record.paidAmount - payment.payAmount;
     final grandTotalReceived = record.paidAmount;
-    final balance = record.totalAmount - grandTotalReceived;
+    final balance =
+        record.totalAmount - record.totalReturnAmount - grandTotalReceived;
 
     pdf.addPage(
       pw.Page(
@@ -337,11 +365,23 @@ class PdfInvoiceService {
                     children: [
                       pw.Text(
                         'Won Mart (Pvt) Ltd',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                      pw.Text('206, Rolawatta, Meegama, Dharga Town', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Email: info.wonm@gmail.com', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Phone: +94 713 148 203', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text(
+                        '206, Rolawatta, Meegama, Dharga Town',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      pw.Text(
+                        'Email: info.wonm@gmail.com',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      pw.Text(
+                        'Phone: +94 713 148 203',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
                     ],
                   ),
                 ],
@@ -358,11 +398,23 @@ class PdfInvoiceService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('SHOP DETAILS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.Text(
+                        'SHOP DETAILS',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
                       pw.SizedBox(height: 4),
                       pw.Text('Name: ${payment.shopName}'),
                       pw.SizedBox(height: 12),
-                      pw.Text('AGENT DETAILS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.Text(
+                        'AGENT DETAILS',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
                       pw.SizedBox(height: 4),
                       pw.Text('Name: ${payment.agentName}'),
                     ],
@@ -370,10 +422,20 @@ class PdfInvoiceService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('RECEIPT DETAILS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.Text(
+                        'RECEIPT DETAILS',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
                       pw.SizedBox(height: 4),
-                      pw.Text('Receipt ID: #${payment.id.toUpperCase().substring(0, 8)}'),
-                      pw.Text('Order ID: #${payment.salesRecordId.toUpperCase().substring(0, 8)}'),
+                      pw.Text(
+                        'Receipt ID: #${payment.id.toUpperCase().substring(0, 8)}',
+                      ),
+                      pw.Text(
+                        'Order ID: #${payment.salesRecordId.toUpperCase().substring(0, 8)}',
+                      ),
                       pw.Text('Date: $date'),
                       pw.Text('Status: ${payment.status.toUpperCase()}'),
                     ],
@@ -389,7 +451,13 @@ class PdfInvoiceService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('SUMMARY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                      pw.Text(
+                        'SUMMARY',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                   pw.SizedBox(width: 80),
@@ -397,12 +465,44 @@ class PdfInvoiceService {
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
                       _summaryRow('SUB TOTAL', _currency.format(subTotal)),
-                      _summaryRow('NET TOTAL', _currency.format(record.totalAmount), isBold: true),
-                      _summaryRow('PREV. RECEIVED TOTAL', _currency.format(prevPaid)),
-                      _summaryRow('PAID ON ${DateFormat('M/d/y').format(payment.createdAt)}', _currency.format(payment.payAmount), isBold: true, color: PdfColors.green800),
-                      _summaryRow('GRAND TOTAL RECEIVED', _currency.format(grandTotalReceived), isBold: true),
+                      _summaryRow(
+                        'NET TOTAL',
+                        _currency.format(record.totalAmount),
+                      ),
+                      if (record.totalReturnAmount > 0)
+                        _summaryRow(
+                          'RETURNS',
+                          '- ${_currency.format(record.totalReturnAmount)}',
+                        ),
+                      _summaryRow(
+                        'TOTAL DUE',
+                        _currency.format(
+                          record.totalAmount - record.totalReturnAmount,
+                        ),
+                        isBold: true,
+                      ),
+                      _summaryRow(
+                        'PREV. RECEIVED TOTAL',
+                        _currency.format(prevPaid),
+                      ),
+                      _summaryRow(
+                        'PAID ON ${DateFormat('M/d/y').format(payment.createdAt)}',
+                        _currency.format(payment.payAmount),
+                        isBold: true,
+                        color: PdfColors.green800,
+                      ),
+                      _summaryRow(
+                        'GRAND TOTAL RECEIVED',
+                        _currency.format(grandTotalReceived),
+                        isBold: true,
+                      ),
                       pw.Divider(thickness: 1, color: PdfColors.black),
-                      _summaryRow('BALANCE', _currency.format(balance), isBold: true, fontSize: 14),
+                      _summaryRow(
+                        'BALANCE',
+                        _currency.format(balance),
+                        isBold: true,
+                        fontSize: 14,
+                      ),
                     ],
                   ),
                 ],
@@ -421,7 +521,10 @@ class PdfInvoiceService {
               pw.Center(
                 child: pw.Text(
                   'Thank you for your business!',
-                  style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10),
+                  style: pw.TextStyle(
+                    fontStyle: pw.FontStyle.italic,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ],
@@ -433,7 +536,13 @@ class PdfInvoiceService {
     return pdf.save();
   }
 
-  static pw.Widget _summaryRow(String label, String value, {bool isBold = false, double fontSize = 10, PdfColor? color}) {
+  static pw.Widget _summaryRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    double fontSize = 10,
+    PdfColor? color,
+  }) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),
       child: pw.Row(
@@ -482,17 +591,26 @@ class PdfInvoiceService {
   }
 
   /// Print payment receipt
-  static Future<void> printPaymentReceipt(SalesPaymentModel payment, SalesRecordModel record, {pw.ImageProvider? logo}) async {
+  static Future<void> printPaymentReceipt(
+    SalesPaymentModel payment,
+    SalesRecordModel record, {
+    pw.ImageProvider? logo,
+  }) async {
     final bytes = await generatePaymentReceipt(payment, record, logo: logo);
     await Printing.layoutPdf(onLayout: (_) async => bytes);
   }
 
   /// Share payment receipt
-  static Future<void> sharePaymentReceipt(SalesPaymentModel payment, SalesRecordModel record, {pw.ImageProvider? logo}) async {
+  static Future<void> sharePaymentReceipt(
+    SalesPaymentModel payment,
+    SalesRecordModel record, {
+    pw.ImageProvider? logo,
+  }) async {
     final bytes = await generatePaymentReceipt(payment, record, logo: logo);
     await Printing.sharePdf(
       bytes: bytes,
-      filename: 'receipt_${payment.shopName.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(payment.createdAt)}.pdf',
+      filename:
+          'receipt_${payment.shopName.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(payment.createdAt)}.pdf',
     );
   }
 }

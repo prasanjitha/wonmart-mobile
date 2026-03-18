@@ -86,9 +86,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     setState(() {
       _paymentStatus = newStatus;
       if (newStatus == 'Full Payment') {
-        _paidAmountController.text = widget.record.totalAmount.toStringAsFixed(
-          2,
-        );
+        final netAmount =
+            widget.record.totalAmount - widget.record.totalReturnAmount;
+        _paidAmountController.text = netAmount.toStringAsFixed(2);
       } else if (newStatus == 'Not Paid') {
         _paidAmountController.text = '0';
       }
@@ -97,7 +97,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
 
   double get _dueAmount {
     final paid = double.tryParse(_paidAmountController.text) ?? 0.0;
-    return widget.record.totalAmount - paid;
+    final netAmount =
+        widget.record.totalAmount - widget.record.totalReturnAmount;
+    return netAmount - paid;
   }
 
   Future<void> _confirmIssuance() async {
@@ -227,7 +229,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Total Shop Price',
+                          'Gross Shop Price',
                           style: GoogleFonts.inter(color: AppColors.textMuted),
                         ),
                         Text(
@@ -235,11 +237,54 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                           style: GoogleFonts.inter(
                             color: const Color(0xFFFFD700),
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                            fontSize: 16,
                           ),
                         ),
                       ],
                     ),
+                    if (widget.record.returnItems.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Returns',
+                            style: GoogleFonts.inter(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          Text(
+                            '- Rs ${_currency.format(widget.record.totalReturnAmount)}',
+                            style: GoogleFonts.inter(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Net Shop Price',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Rs ${_currency.format(widget.record.totalAmount - widget.record.totalReturnAmount)}',
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFFFD700),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -308,6 +353,49 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     ),
                   ),
                 ),
+                if (widget.record.returnItems.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Return Items',
+                    style: GoogleFonts.inter(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...widget.record.returnItems.map(
+                    (item) => Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardDarkBackground.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.productName,
+                              style: GoogleFonts.inter(
+                                color: Colors.orange,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${item.quantity} x Rs ${item.price.toStringAsFixed(0)}',
+                            style: GoogleFonts.inter(
+                              color: Colors.orange.withOpacity(0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
 
               const SizedBox(height: 24),
@@ -650,6 +738,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         shop: _shopDetails,
         paidAmount: currentPaidAmount,
         paymentStatus: _paymentStatus,
+        paymentType: _paymentType,
         logo: logoImage,
       );
 

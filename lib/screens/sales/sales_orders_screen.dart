@@ -4,10 +4,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../models/sales_record_model.dart';
 import '../../services/sales_record_service.dart';
-import '../../services/pdf_invoice_service.dart';
+import '../../services/pdf_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/shop_service.dart';
 import '../../theme/app_colors.dart';
 import 'create_order_screen.dart';
 import '../../widgets/premium_background.dart';
+import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import '../../widgets/toast_helper.dart';
 
 class SalesOrdersScreen extends StatefulWidget {
   final String? initialSearchQuery;
@@ -19,6 +26,8 @@ class SalesOrdersScreen extends StatefulWidget {
 
 class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
   final SalesRecordService _salesRecordService = SalesRecordService();
+  final AuthService _authService = AuthService();
+  final ShopService _shopService = ShopService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final _currency = NumberFormat('#,##0.00', 'en_US');
@@ -271,7 +280,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
                   Icons.receipt_long_outlined,
                   'Invoice',
                   AppColors.textMuted,
-                  () => PdfInvoiceService.shareOrPrint(record),
+                  () => _generateDetailedInvoice(record),
                 ),
                 const SizedBox(width: 8),
                 _actionBtn(
@@ -421,7 +430,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => PdfInvoiceService.shareOrPrint(record),
+            onPressed: () => _generateDetailedInvoice(record),
             child: Text(
               'Generate Invoice',
               style: GoogleFonts.inter(color: const Color(0xFFFFD700)),
@@ -463,5 +472,48 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _generateDetailedInvoice(SalesRecordModel record) async {
+    try {
+      // 1. Load Agent Profile
+      final profile = await _authService.getAgentProfile();
+      final agentName = profile?['name'] ?? 'Agent';
+      final agentId = FirebaseAuth.instance.currentUser?.uid ?? 'N/A';
+
+      // 2. Load Shop Details
+      final shop = await _shopService.getShopById(record.shopId);
+
+      // 3. Load Logo
+      pw.ImageProvider? logoImage;
+      try {
+        final byteData = await rootBundle.load('assets/images/company_logo.png');
+        logoImage = pw.MemoryImage(byteData.buffer.asUint8List());
+      } catch (e) {
+        debugPrint('Error loading logo: $e');
+      }
+
+      // 4. Generate and Layout PDF
+      // Note: We use PdfService.generateInvoice directly withPrinting.layoutPdf for consistency
+      // Or we can use PdfService.shareOrPrintInvoice if that's what's preferred
+      final pdfBytes = await PdfService.generateInvoice(
+        record: record,
+        agentName: agentName,
+        agentId: agentId,
+        shop: shop,
+        paidAmount: record.paidAmount,
+        paymentStatus: record.paymentStatus,
+        logo: logoImage,
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: 'invoice_${record.shopName.replaceAll(' ', '_')}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showTopRightToast(context, 'Error generating invoice: $e');
+      }
+    }
   }
 }

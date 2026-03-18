@@ -115,7 +115,8 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
     setState(() {
       _selectedRecord = record;
       if (record != null) {
-        final balance = record.totalAmount - record.paidAmount;
+        final balance =
+            record.totalAmount - record.totalReturnAmount - record.paidAmount;
         _amountController.text = _paymentType == 'full'
             ? balance.toStringAsFixed(2)
             : '';
@@ -129,7 +130,9 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
       _paymentType = type;
       if (_selectedRecord != null) {
         final balance =
-            _selectedRecord!.totalAmount - _selectedRecord!.paidAmount;
+            _selectedRecord!.totalAmount -
+            _selectedRecord!.totalReturnAmount -
+            _selectedRecord!.paidAmount;
         _amountController.text = type == 'full'
             ? balance.toStringAsFixed(2)
             : '';
@@ -144,7 +147,10 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
     }
 
     final amount = double.tryParse(_amountController.text) ?? 0.0;
-    final balance = _selectedRecord!.totalAmount - _selectedRecord!.paidAmount;
+    final balance =
+        _selectedRecord!.totalAmount -
+        _selectedRecord!.totalReturnAmount -
+        _selectedRecord!.paidAmount;
 
     if (amount <= 0 || amount > balance) {
       ToastHelper.showTopRightToast(context, 'Invalid payment amount');
@@ -177,7 +183,7 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
         _isSaved = true;
         _isSaving = false;
         _lastSavedPayment = payment.copyWith(id: savedId);
-        
+
         // Update record to post-payment state for accurate receipt generation
         _selectedRecord = SalesRecordModel(
           id: _selectedRecord!.id,
@@ -185,6 +191,7 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
           shopName: _selectedRecord!.shopName,
           items: _selectedRecord!.items,
           totalAmount: _selectedRecord!.totalAmount,
+          totalReturnAmount: _selectedRecord!.totalReturnAmount,
           createdAt: _selectedRecord!.createdAt,
           paymentStatus: (amount >= balance) ? 'completed' : 'partial',
           paidAmount: _selectedRecord!.paidAmount + amount,
@@ -381,6 +388,11 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
               'Already Paid',
               'Rs ${_currency.format(_selectedRecord!.paidAmount)}',
             ),
+            if (_selectedRecord!.totalReturnAmount > 0)
+              _detailRow(
+                'Return Amount',
+                'Rs ${_currency.format(_selectedRecord!.totalReturnAmount)}',
+              ),
             const Divider(color: AppColors.inputBorder),
             Text(
               'Items:',
@@ -651,7 +663,7 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
                               ),
                             ),
                             Text(
-                               _dateFormat.format(r.createdAt),
+                              _dateFormat.format(r.createdAt),
                               style: GoogleFonts.inter(
                                 color: AppColors.textMuted,
                                 fontSize: 11,
@@ -679,7 +691,10 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
   }
 
   Widget _buildPaymentForm() {
-    final balance = _selectedRecord!.totalAmount - _selectedRecord!.paidAmount;
+    final balance =
+        _selectedRecord!.totalAmount -
+        _selectedRecord!.totalReturnAmount -
+        _selectedRecord!.paidAmount;
 
     return Column(
       children: [

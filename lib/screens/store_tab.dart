@@ -7,6 +7,8 @@ import '../services/store_service.dart';
 import '../services/sales_record_service.dart';
 import '../models/issuing_summary_model.dart';
 import '../models/sales_record_model.dart';
+import '../models/shop_model.dart';
+import '../services/shop_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/premium_background.dart';
 
@@ -17,23 +19,22 @@ class StoreTab extends StatefulWidget {
   State<StoreTab> createState() => _StoreTabState();
 }
 
-class _StoreTabState extends State<StoreTab>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _StoreTabState extends State<StoreTab> {
+  int _selectedIndex = 0;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final StoreService _storeService = StoreService();
   String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
+  final List<String> _tabLabels = [
+    'My Store',
+    'Store History',
+    'Issuing Overview',
+    'Return Overview',
+  ];
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -53,24 +54,54 @@ class _StoreTabState extends State<StoreTab>
               fontWeight: FontWeight.bold,
             ),
           ),
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: AppColors.primaryRed,
-            labelColor: AppColors.primaryRed,
-            unselectedLabelColor: AppColors.textMuted,
-            tabs: const [
-              Tab(text: 'My Store'),
-              Tab(text: 'Store History'),
-              Tab(text: 'Issuing Overview'),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(52),
+            child: SizedBox(
+              height: 52,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                itemCount: _tabLabels.length,
+                itemBuilder: (context, index) {
+                  final isSelected = _selectedIndex == index;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedIndex = index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.primaryRed : AppColors.cardDarkBackground,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? AppColors.primaryRed : AppColors.inputBorder,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _tabLabels[index],
+                            style: GoogleFonts.inter(
+                              color: isSelected ? Colors.white : AppColors.textMuted,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ),
-        body: TabBarView(
-          controller: _tabController,
+        body: IndexedStack(
+          index: _selectedIndex,
           children: [
             _buildMyStoreTab(),
             _buildHistoryTab(),
             _IssuingOverviewTab(),
+            _ReturnOverviewTab(),
           ],
         ),
       ),
@@ -906,6 +937,373 @@ class _HistoryCardState extends State<_HistoryCard> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _ReturnOverviewTab extends StatefulWidget {
+  @override
+  State<_ReturnOverviewTab> createState() => _ReturnOverviewTabState();
+}
+
+class _ReturnOverviewTabState extends State<_ReturnOverviewTab> {
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _endDate = DateTime.now();
+  List<SalesRecordModel> _records = [];
+  List<ShopModel> _shops = [];
+  String? _selectedShopId;
+  bool _isLoading = false;
+
+  final SalesRecordService _recordService = SalesRecordService();
+  final ShopService _shopService = ShopService();
+  final _currency = NumberFormat('#,##0', 'en_US');
+
+  String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final records = await _recordService.getSalesRecordsInRange(
+        _agentId,
+        _startDate,
+        _endDate,
+      );
+      final shops = await _shopService.getAgentShops(_agentId);
+      setState(() {
+        _records = records;
+        _shops = shops;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _selectDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
+      firstDate: DateTime(2023),
+      lastDate: DateTime(2030),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.primaryRed,
+            onPrimary: Colors.white,
+            surface: AppColors.cardDarkBackground,
+            onSurface: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+      });
+      _loadData();
+    }
+  }
+
+  List<SalesRecordModel> get _filteredRecords {
+    if (_selectedShopId == null) return _records;
+    return _records.where((r) => r.shopId == _selectedShopId).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildFilterCard(),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Colors.orange))
+              : _buildReturnsList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: AppColors.cardDarkBackground.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.inputBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_return_outlined, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Return Overview',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'View all returns over a specified date range.',
+            style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('START DATE', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: _selectDateRange,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputBackground,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.inputBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(DateFormat('MM/dd/yyyy').format(_startDate), style: GoogleFonts.inter(color: Colors.white, fontSize: 12))),
+                            const Icon(Icons.calendar_today, color: AppColors.textMuted, size: 14),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('END DATE', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: _selectDateRange,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputBackground,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.inputBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(DateFormat('MM/dd/yyyy').format(_endDate), style: GoogleFonts.inter(color: Colors.white, fontSize: 12))),
+                            const Icon(Icons.calendar_today, color: AppColors.textMuted, size: 14),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.inputBackground,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.inputBorder),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedShopId,
+                hint: Text('All Shops', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 14)),
+                dropdownColor: AppColors.cardDarkBackground,
+                icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+                isExpanded: true,
+                items: [
+                  DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('All Shops', style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
+                  ),
+                  ..._shops.map((s) => DropdownMenuItem(
+                        value: s.id,
+                        child: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
+                      )),
+                ],
+                onChanged: (val) => setState(() => _selectedShopId = val),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReturnsList() {
+    final List<Map<String, dynamic>> allReturns = [];
+
+    for (var record in _filteredRecords) {
+      for (var item in record.returnItems) {
+        allReturns.add({
+          'item': item,
+          'shopName': record.shopName,
+          'date': record.createdAt,
+        });
+      }
+    }
+
+    if (allReturns.isEmpty) {
+      return Center(
+        child: Text(
+          'No returns found in this period',
+          style: GoogleFonts.inter(color: AppColors.textMuted),
+        ),
+      );
+    }
+
+    double grandTotal = 0;
+    for (var r in allReturns) {
+      grandTotal += (r['item'] as SalesRecordItem).totalPrice;
+    }
+
+    return ListView(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 100),
+      children: [
+        ...allReturns.map((r) {
+          final item = r['item'] as SalesRecordItem;
+          final shopName = r['shopName'] as String;
+          final date = r['date'] as DateTime;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.cardDarkBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withOpacity(0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.productName,
+                        style: GoogleFonts.inter(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '- Rs ${_currency.format(item.totalPrice)}',
+                      style: GoogleFonts.inter(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      shopName,
+                      style: GoogleFonts.inter(color: AppColors.textLight, fontSize: 12),
+                    ),
+                    Text(
+                      DateFormat('yyyy-MM-dd').format(date),
+                      style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.quantity} x Rs ${item.price.toStringAsFixed(2)}',
+                  style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12),
+                ),
+                if (item.returnReason != null && item.returnReason!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: AppColors.textMuted, size: 12),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Reason: ${item.returnReason}',
+                            style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (item.isAddedToStock == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.inventory_2_outlined, color: Colors.greenAccent, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Added to stock',
+                          style: GoogleFonts.inter(color: Colors.greenAccent, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardDarkBackground.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('TOTAL RETURNS:', style: GoogleFonts.inter(color: AppColors.textMuted, fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(width: 24),
+              Text(
+                'Rs. ${_currency.format(grandTotal)}',
+                style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

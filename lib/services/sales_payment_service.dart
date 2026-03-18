@@ -28,7 +28,9 @@ class SalesPaymentService {
     final batch = _db.batch();
 
     final newPaidAmount = salesRecord.paidAmount + payment.payAmount;
-    final newStatus = newPaidAmount >= salesRecord.totalAmount
+    final newStatus =
+        (newPaidAmount + salesRecord.totalReturnAmount) >=
+            salesRecord.totalAmount
         ? 'completed'
         : 'partial';
 
@@ -96,13 +98,14 @@ class SalesPaymentService {
 
     // Update daily collection aggregate
     final now = DateTime.now();
-    final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateString =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final dailyRef = _db
         .collection('agents')
         .doc(payment.agentId)
         .collection('daily_collections')
         .doc(dateString);
-        
+
     batch.set(dailyRef, {
       'date': dateString,
       'collectedAmount': FieldValue.increment(payment.payAmount),
@@ -115,7 +118,8 @@ class SalesPaymentService {
 
   Future<double> getTodayTotalPayments(String agentId) async {
     final now = DateTime.now();
-    final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateString =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     final doc = await _db
         .collection('agents')
@@ -133,7 +137,8 @@ class SalesPaymentService {
 
   Stream<double> watchTodayTotalPayments(String agentId) {
     final now = DateTime.now();
-    final dateString = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateString =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     return _db
         .collection('agents')
@@ -142,11 +147,11 @@ class SalesPaymentService {
         .doc(dateString)
         .snapshots()
         .map((doc) {
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        return (data['collectedAmount'] ?? 0.0).toDouble();
-      }
-      return 0.0;
-    });
+          if (doc.exists) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['collectedAmount'] ?? 0.0).toDouble();
+          }
+          return 0.0;
+        });
   }
 }
