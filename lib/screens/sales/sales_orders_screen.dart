@@ -60,7 +60,59 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
     super.dispose();
   }
 
-  // Removed _deleteOrder as it's not applicable to sales_records yet
+  Future<void> _deleteOrder(SalesRecordModel record) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardDarkBackground,
+          title: Text(
+            'Delete Sales Record?',
+            style: GoogleFonts.inter(
+              color: AppColors.textLight,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'This will return the items to stock and remove any related payments. This action cannot be undone.',
+            style: GoogleFonts.inter(color: AppColors.textMuted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: AppColors.textMuted),
+              ),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.primaryRed.withOpacity(0.1),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Delete',
+                style: GoogleFonts.inter(color: AppColors.primaryRed),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      try {
+        await _salesRecordService.deleteSalesRecord(_agentId, record);
+        if (mounted) {
+          ToastHelper.showTopRightToast(context, 'Sales record deleted');
+        }
+      } catch (e) {
+        if (mounted) {
+          ToastHelper.showTopRightToast(context, 'Error deleting record: $e');
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -284,6 +336,13 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
                 ),
                 const SizedBox(width: 8),
                 _actionBtn(
+                  Icons.delete_outline,
+                  'Delete',
+                  AppColors.primaryRed,
+                  () => _deleteOrder(record),
+                ),
+                const SizedBox(width: 8),
+                _actionBtn(
                   Icons.visibility_outlined,
                   'Details',
                   const Color(0xFFFFD700),
@@ -487,7 +546,9 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
       // 3. Load Logo
       pw.ImageProvider? logoImage;
       try {
-        final byteData = await rootBundle.load('assets/images/company_logo.png');
+        final byteData = await rootBundle.load(
+          'assets/images/company_logo.png',
+        );
         logoImage = pw.MemoryImage(byteData.buffer.asUint8List());
       } catch (e) {
         debugPrint('Error loading logo: $e');

@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
+import '../services/pdf_service.dart';
+import '../widgets/toast_helper.dart';
 import '../services/shop_service.dart';
 import '../models/shop_model.dart';
 import 'shops/shops_screen.dart';
@@ -29,11 +33,54 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late int _currentIndex;
   String? _salesSearchQuery;
+  Timer? _summaryTimer;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _scheduleDailySummary();
+  }
+
+  @override
+  void dispose() {
+    _summaryTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleDailySummary() {
+    // Check every minute if it's past 16:00 and hasn't saved today
+    _summaryTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
+      final now = DateTime.now();
+      if (now.hour >= 17) {
+        final prefs = await SharedPreferences.getInstance();
+        final dateKey = 'inventory_summary_${now.year}_${now.month}_${now.day}';
+        final hasSavedToday = prefs.getBool(dateKey) ?? false;
+
+        if (!hasSavedToday) {
+          final agentId = FirebaseAuth.instance.currentUser?.uid;
+          if (agentId == null) return;
+
+          final profile = await AuthService().getAgentProfile();
+          final agentName = profile?['name'] ?? 'Agent';
+
+          final filePath = await PdfService.generateAndSaveInventorySummary(
+            agentId,
+            agentName,
+          );
+
+          if (filePath != null) {
+            await prefs.setBool(dateKey, true);
+            if (mounted) {
+              ToastHelper.showTopRightToast(
+                context,
+                'Daily Inventory auto-saved to phone',
+              );
+            }
+          }
+        }
+      }
+    });
   }
 
   List<Widget> get _tabs => [
@@ -601,7 +648,9 @@ class _HomeTabState extends State<_HomeTab> {
                       ),
                       Expanded(
                         child: StreamBuilder<double>(
-                          stream: _paymentService.watchTodayTotalPayments(_agentId),
+                          stream: _paymentService.watchTodayTotalPayments(
+                            _agentId,
+                          ),
                           builder: (context, snapshot) {
                             final val = snapshot.data ?? 0.0;
                             return Column(

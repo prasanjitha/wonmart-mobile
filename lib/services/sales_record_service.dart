@@ -368,4 +368,76 @@ class SalesRecordService {
         .get();
     return snap.docs.map((d) => SalesRecordModel.fromFirestore(d)).toList();
   }
+
+  Future<void> deleteSalesRecord(
+    String agentId,
+    SalesRecordModel record,
+  ) async {
+    // 1. Add back stock for the sold items
+    final Map<String, int> additions = {
+      for (var item in record.items) item.productId: item.quantity,
+    };
+    if (additions.isNotEmpty) {
+      await StoreService().addStock(agentId, additions);
+    }
+
+    // 2. We could deduct the returned items if needed, but the instruction specifically implies adding back the sold items.
+    final Map<String, int> deductions = {
+      for (var item in record.returnItems.where(
+        (i) => i.isAddedToStock == true,
+      ))
+        item.productId: item.quantity,
+    };
+    if (deductions.isNotEmpty) {
+      await StoreService().deductStock(agentId, deductions);
+    }
+
+    final batch = _db.batch();
+
+    // 3. Delete from Agent Sales Records
+    batch.delete(_salesRecords(agentId).doc(record.id));
+
+    // 4. Delete from Shop Sales Records
+    batch.delete(
+      _db
+          .collection('agents')
+          .doc(agentId)
+          .collection('shops')
+          .doc(record.shopId)
+          .collection('sales_records')
+          .doc(record.id),
+    );
+
+    // 5. Query related payments
+    final existingPayments = await _db
+        .collection('all_sale_payments')
+        .where('salesRecordId', isEqualTo: record.id)
+        .get();
+
+    for (var doc in existingPayments.docs) {
+      final paymentId = doc.id;
+      // Delete from all_sale_payments
+      batch.delete(doc.reference);
+      // Delete from agent sales_payment
+      batch.delete(
+        _db
+            .collection('agents')
+            .doc(agentId)
+            .collection('sales_payment')
+            .doc(paymentId),
+      );
+      // Delete from shop sales_payment
+      batch.delete(
+        _db
+            .collection('agents')
+            .doc(agentId)
+            .collection('shops')
+            .doc(record.shopId)
+            .collection('sales_payment')
+            .doc(paymentId),
+      );
+    }
+
+    await batch.commit();
+  }
 }

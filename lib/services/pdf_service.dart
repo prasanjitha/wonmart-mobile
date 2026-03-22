@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/sales_record_model.dart';
 import '../models/shop_model.dart';
+import '../services/store_service.dart';
 
 class PdfService {
   static const PdfColor primaryRed = PdfColor.fromInt(0xFFC62828);
@@ -348,5 +351,80 @@ class PdfService {
       filename:
           'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
     );
+  }
+
+  static Future<String?> generateAndSaveInventorySummary(
+    String agentId,
+    String agentName,
+  ) async {
+    try {
+      final items = await StoreService().getAgentStore(agentId);
+
+      final pdf = pw.Document();
+      final dateString = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final timeString = DateFormat('hh:mm a').format(DateTime.now());
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) => [
+            pw.Text(
+              'Daily Inventory Summary',
+              style: pw.TextStyle(
+                fontSize: 24,
+                fontWeight: pw.FontWeight.bold,
+                color: primaryRed,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Text('Agent Name: $agentName'),
+            pw.Text('Date & Time: $dateString, $timeString'),
+            pw.SizedBox(height: 20),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 20),
+            pw.TableHelper.fromTextArray(
+              headers: ['Product Name', 'Quantity', 'Unit'],
+              data: List<List<dynamic>>.generate(items.length, (index) {
+                final item = items[index];
+                return [item.productName, item.quantity.toString(), item.unit];
+              }),
+              headerStyle: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 12,
+              ),
+              cellStyle: const pw.TextStyle(fontSize: 11),
+              headerDecoration: const pw.BoxDecoration(color: tableHeaderGray),
+              cellHeight: 30,
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerRight,
+                2: pw.Alignment.centerLeft,
+              },
+            ),
+          ],
+        ),
+      );
+
+      final bytes = await pdf.save();
+
+      // Determine directory to save
+      Directory? dir;
+      if (Platform.isAndroid) {
+        dir = await getExternalStorageDirectory();
+      } else {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      if (dir == null) return null;
+
+      final filePath = '${dir.path}/Inventory_Summary_$dateString.pdf';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes);
+
+      return filePath;
+    } catch (e) {
+      return null;
+    }
   }
 }
