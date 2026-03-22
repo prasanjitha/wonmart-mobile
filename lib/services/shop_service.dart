@@ -43,7 +43,9 @@ class ShopService {
     batch.set(docRef, data);
     batch.set(agentShopRef, data);
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<void> updateShop(
@@ -57,7 +59,9 @@ class ShopService {
       _db.collection('agents').doc(agentId).collection('shops').doc(shopId),
       data,
     );
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<void> deleteShop(String shopId, String agentId) async {
@@ -66,7 +70,9 @@ class ShopService {
     batch.delete(
       _db.collection('agents').doc(agentId).collection('shops').doc(shopId),
     );
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<List<ShopModel>> getAgentShops(

@@ -112,7 +112,9 @@ class SalesPaymentService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync
+    });
     return paymentId;
   }
 

@@ -34,7 +34,9 @@ class RouteService {
     batch.set(docRef, data);
     batch.set(agentRouteRef, data);
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<List<RouteModel>> getAgentRoutes(String agentId) async {
@@ -57,7 +59,9 @@ class RouteService {
       data,
     );
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<void> deleteRoute(String routeId, String agentId) async {
@@ -68,6 +72,8 @@ class RouteService {
       _db.collection('agents').doc(agentId).collection('routes').doc(routeId),
     );
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 }

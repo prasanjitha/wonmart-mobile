@@ -39,7 +39,9 @@ class StoreService {
       });
     }
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<void> addStock(String agentId, Map<String, int> additions) async {
@@ -54,7 +56,9 @@ class StoreService {
       }, SetOptions(merge: true));
     }
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Stream<List<StoreHistoryModel>> watchStoreHistory(String agentId) {

@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check every minute if it's past 16:00 and hasn't saved today
     _summaryTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
       final now = DateTime.now();
-      if (now.hour >= 17) {
+      if (now.hour >= 23) {
         final prefs = await SharedPreferences.getInstance();
         final dateKey = 'inventory_summary_${now.year}_${now.month}_${now.day}';
         final hasSavedToday = prefs.getBool(dateKey) ?? false;

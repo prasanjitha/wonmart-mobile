@@ -27,7 +27,9 @@ class SalesRecordService {
         .doc(docId);
     batch.set(shopSalesRef, record.toMap());
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Future<void> issueOrderWithPayment({
@@ -182,7 +184,9 @@ class SalesRecordService {
       }, SetOptions(merge: true));
     }
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 
   Stream<List<SalesRecordModel>> watchSalesRecords(String agentId) {
@@ -438,6 +442,8 @@ class SalesRecordService {
       );
     }
 
-    await batch.commit();
+    batch.commit().catchError((e) {
+      // Ignored for offline sync support
+    });
   }
 }
