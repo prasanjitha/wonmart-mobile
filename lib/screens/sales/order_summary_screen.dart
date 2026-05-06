@@ -34,6 +34,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   final TextEditingController _paidAmountController = TextEditingController();
   String _paymentType = 'Cash';
   String _paymentStatus = 'Partial Payment';
+  String _generatedRecordId = '';
   bool _isSaving = false;
   bool _showDetails = false;
   String _agentName = 'Agent';
@@ -122,7 +123,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       if (_paymentStatus == 'Partial Payment') dbStatus = 'partial';
       if (_paymentStatus == 'Not Paid') dbStatus = 'pending';
 
-      await _salesRecordService.issueOrderWithPayment(
+      final docId = await _salesRecordService.issueOrderWithPayment(
         agentId: agentId,
         agentName: _agentName,
         record: widget.record,
@@ -132,6 +133,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       );
 
       if (!mounted) return;
+      setState(() => _generatedRecordId = docId);
       _showSuccessPopup();
     } catch (e) {
       if (mounted) {
@@ -656,17 +658,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     ),
                     elevation: 0,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context); // Close popup
-                    _generateAndPreviewPdf();
-                    // Navigate to Home screen -> Sales tab (index 1)
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(initialIndex: 1),
-                      ),
-                      (route) => false,
-                    );
+                    await _generateAndPreviewPdf(isThermal: true);
+                    if (mounted) {
+                      _navigateToHome();
+                    }
                   },
                   icon: const Icon(
                     Icons.receipt_long_rounded,
@@ -714,7 +711,15 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     );
   }
 
-  Future<void> _generateAndPreviewPdf() async {
+  void _navigateToHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen(initialIndex: 1)),
+      (route) => false,
+    );
+  }
+
+  Future<void> _generateAndPreviewPdf({bool isThermal = false}) async {
     try {
       final agentId = FirebaseAuth.instance.currentUser?.uid ?? 'N/A';
       final currentPaidAmount =
@@ -731,23 +736,45 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         debugPrint('Error loading logo: $e');
       }
 
-      final pdfBytes = await PdfService.generateInvoice(
-        record: widget.record,
-        agentName: _agentName,
-        agentId: agentId,
-        shop: _shopDetails,
-        paidAmount: currentPaidAmount,
-        paymentStatus: _paymentStatus,
-        paymentType: _paymentType,
-        logo: logoImage,
+      final recordToPrint = SalesRecordModel(
+        id: _generatedRecordId.isNotEmpty ? _generatedRecordId : 'PENDING_1234',
+        shopId: widget.record.shopId,
+        shopName: widget.record.shopName,
+        items: widget.record.items,
+        returnItems: widget.record.returnItems,
+        totalAmount: widget.record.totalAmount,
+        totalReturnAmount: widget.record.totalReturnAmount,
+        createdAt: widget.record.createdAt,
       );
+
+      final pdfBytes = isThermal
+          ? await PdfService.generateThermalInvoice(
+              record: recordToPrint,
+              agentName: _agentName,
+              agentId: agentId,
+              shop: _shopDetails,
+              paidAmount: currentPaidAmount,
+              paymentStatus: _paymentStatus,
+              paymentType: _paymentType,
+              logo: logoImage,
+            )
+          : await PdfService.generateInvoice(
+              record: recordToPrint,
+              agentName: _agentName,
+              agentId: agentId,
+              shop: _shopDetails,
+              paidAmount: currentPaidAmount,
+              paymentStatus: _paymentStatus,
+              paymentType: _paymentType,
+              logo: logoImage,
+            );
 
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdfBytes,
         name: 'invoice_${widget.record.shopName.replaceAll(' ', '_')}',
       );
     } catch (e) {
-      ToastHelper.showTopRightToast(context, 'Error generating PDF: $e');
+      debugPrint('Error generating PDF: $e');
     }
   }
 }

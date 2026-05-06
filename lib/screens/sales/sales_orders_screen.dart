@@ -332,7 +332,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
                   Icons.receipt_long_outlined,
                   'Invoice',
                   AppColors.textMuted,
-                  () => _generateDetailedInvoice(record),
+                  () => _showInvoiceFormatSelection(record),
                 ),
                 const SizedBox(width: 8),
                 _actionBtn(
@@ -489,7 +489,10 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => _generateDetailedInvoice(record),
+            onPressed: () {
+              Navigator.pop(context); // Close the details dialog
+              _showInvoiceFormatSelection(record);
+            },
             child: Text(
               'Generate Invoice',
               style: GoogleFonts.inter(color: const Color(0xFFFFD700)),
@@ -533,7 +536,55 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
     );
   }
 
-  Future<void> _generateDetailedInvoice(SalesRecordModel record) async {
+  void _showInvoiceFormatSelection(SalesRecordModel record) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardDarkBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Invoice Format',
+                style: GoogleFonts.inter(
+                  color: AppColors.textLight,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.description, color: AppColors.textLight),
+                title: Text('A4 Format', style: GoogleFonts.inter(color: AppColors.textLight)),
+                subtitle: Text('Standard full-page invoice', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _generateDetailedInvoice(record, isThermal: false);
+                },
+              ),
+              const Divider(color: AppColors.inputBorder),
+              ListTile(
+                leading: const Icon(Icons.receipt_long, color: AppColors.textLight),
+                title: Text('Thermal Receipt', style: GoogleFonts.inter(color: AppColors.textLight)),
+                subtitle: Text('Mobile POS printer format', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _generateDetailedInvoice(record, isThermal: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _generateDetailedInvoice(SalesRecordModel record, {bool isThermal = false}) async {
     try {
       // 1. Load Agent Profile
       final profile = await _authService.getAgentProfile();
@@ -555,17 +606,25 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
       }
 
       // 4. Generate and Layout PDF
-      // Note: We use PdfService.generateInvoice directly withPrinting.layoutPdf for consistency
-      // Or we can use PdfService.shareOrPrintInvoice if that's what's preferred
-      final pdfBytes = await PdfService.generateInvoice(
-        record: record,
-        agentName: agentName,
-        agentId: agentId,
-        shop: shop,
-        paidAmount: record.paidAmount,
-        paymentStatus: record.paymentStatus,
-        logo: logoImage,
-      );
+      final pdfBytes = isThermal
+          ? await PdfService.generateThermalInvoice(
+              record: record,
+              agentName: agentName,
+              agentId: agentId,
+              shop: shop,
+              paidAmount: record.paidAmount,
+              paymentStatus: record.paymentStatus,
+              logo: logoImage,
+            )
+          : await PdfService.generateInvoice(
+              record: record,
+              agentName: agentName,
+              agentId: agentId,
+              shop: shop,
+              paidAmount: record.paidAmount,
+              paymentStatus: record.paymentStatus,
+              logo: logoImage,
+            );
 
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdfBytes,

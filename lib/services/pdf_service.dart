@@ -65,6 +65,142 @@ class PdfService {
     return pdf.save();
   }
 
+  static Future<Uint8List> generateThermalInvoice({
+    required SalesRecordModel record,
+    required String agentName,
+    required String agentId,
+    ShopModel? shop,
+    double? paidAmount,
+    String? paymentStatus,
+    String? paymentType,
+    pw.ImageProvider? logo,
+  }) async {
+    final pdf = pw.Document();
+
+    final effectivePaidAmount = paidAmount ?? record.paidAmount;
+    
+    // Calculate values
+    final totalNoItems = record.items.fold(0, (sum, item) => sum + item.quantity);
+    final grossTotal = record.items.fold(0.0, (sum, item) => sum + item.totalAgentPrice);
+    final returnAmount = record.totalReturnAmount;
+    final totalValue = grossTotal - returnAmount;
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        margin: const pw.EdgeInsets.all(10),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Text('WON MART', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Quality Distribution & Logistics', style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 5),
+              pw.Text('206, Rolawatta, Meegama', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('0713148203', style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 5),
+              pw.Text(shop?.name ?? record.shopName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text(shop?.address ?? '', style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Invoice: ${record.id.substring(0, 8)}', style: const pw.TextStyle(fontSize: 8)),
+                  pw.Text('Staff: $agentName', style: const pw.TextStyle(fontSize: 8)),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}', style: const pw.TextStyle(fontSize: 8)),
+                ],
+              ),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              // Items Table
+              pw.Table(
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(1),
+                  2: const pw.FlexColumnWidth(1.5),
+                  3: const pw.FlexColumnWidth(1.5),
+                },
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Text('Item', style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('Qty', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('Price', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('Amt', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
+                  ...record.items.map((item) => pw.TableRow(
+                    children: [
+                      pw.Text(item.productName, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('${item.quantity}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('Rs${_currency.format(item.agentPrice)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text('Rs${_currency.format(item.totalAgentPrice)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  )),
+                ]
+              ),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Items: $totalNoItems', style: const pw.TextStyle(fontSize: 8)),
+                  pw.Text('Subtotal: Rs${_currency.format(grossTotal)}', style: const pw.TextStyle(fontSize: 8)),
+                ]
+              ),
+              if (returnAmount > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.Text('Returns: -Rs${_currency.format(returnAmount)}', style: const pw.TextStyle(fontSize: 8)),
+                  ]
+                ),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Total:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('Rs${_currency.format(totalValue)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                ]
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Cash:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('Rs${_currency.format(effectivePaidAmount)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                ]
+              ),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+              pw.SizedBox(height: 5),
+              pw.Text('Thank You -', style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 5),
+              pw.BarcodeWidget(
+                data: record.id,
+                width: 100,
+                height: 30,
+                barcode: pw.Barcode.code128(),
+                drawText: false,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
   static pw.Widget _buildHeader(pw.ImageProvider? logo) {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

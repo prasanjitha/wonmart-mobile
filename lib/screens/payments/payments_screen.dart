@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../models/sales_record_model.dart';
 import '../../models/shop_model.dart';
 import '../../services/sales_record_service.dart';
@@ -318,10 +319,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _generateInvoice(record),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showInvoiceFormatSelection(record),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.white.withOpacity(0.1)),
                   shape: RoundedRectangleBorder(
@@ -350,7 +351,55 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     );
   }
 
-  Future<void> _generateInvoice(SalesRecordModel record) async {
+  void _showInvoiceFormatSelection(SalesRecordModel record) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardDarkBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Invoice Format',
+                style: GoogleFonts.inter(
+                  color: AppColors.textLight,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.description, color: AppColors.textLight),
+                title: Text('A4 Format', style: GoogleFonts.inter(color: AppColors.textLight)),
+                subtitle: Text('Standard full-page invoice', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _generateInvoice(record, isThermal: false);
+                },
+              ),
+              const Divider(color: AppColors.inputBorder),
+              ListTile(
+                leading: const Icon(Icons.receipt_long, color: AppColors.textLight),
+                title: Text('Thermal Receipt', style: GoogleFonts.inter(color: AppColors.textLight)),
+                subtitle: Text('Mobile POS printer format', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _generateInvoice(record, isThermal: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _generateInvoice(SalesRecordModel record, {bool isThermal = false}) async {
     try {
       // Get full shop details if available
       final shop = _shops.firstWhere(
@@ -368,15 +417,30 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         ),
       );
 
-      await PdfService.shareOrPrintInvoice(
-        record: record,
-        agentName: _agentName,
-        agentId: _agentId,
-        shop: shop,
-        logo: _logoImage,
+      final pdfBytes = isThermal
+          ? await PdfService.generateThermalInvoice(
+              record: record,
+              agentName: _agentName,
+              agentId: _agentId,
+              shop: shop,
+              logo: _logoImage,
+            )
+          : await PdfService.generateInvoice(
+              record: record,
+              agentName: _agentName,
+              agentId: _agentId,
+              shop: shop,
+              logo: _logoImage,
+            );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdfBytes,
+        name: 'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
       );
     } catch (e) {
-      ToastHelper.showTopRightToast(context, 'Error generating invoice: $e');
+      if (mounted) {
+        ToastHelper.showTopRightToast(context, 'Error generating invoice: $e');
+      }
     }
   }
 

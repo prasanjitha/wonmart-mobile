@@ -32,7 +32,7 @@ class SalesRecordService {
     });
   }
 
-  Future<void> issueOrderWithPayment({
+  Future<String> issueOrderWithPayment({
     required String agentId,
     required String agentName,
     required SalesRecordModel record,
@@ -187,6 +187,8 @@ class SalesRecordService {
     batch.commit().catchError((e) {
       // Ignored for offline sync support
     });
+
+    return docId;
   }
 
   Stream<List<SalesRecordModel>> watchSalesRecords(String agentId) {
@@ -420,6 +422,30 @@ class SalesRecordService {
 
     for (var doc in existingPayments.docs) {
       final paymentId = doc.id;
+      final data = doc.data() as Map<String, dynamic>?;
+
+      if (data != null) {
+        final double amountToSubtract = (data['paidAmount'] ?? data['payAmount'] ?? 0.0).toDouble();
+
+        if (amountToSubtract > 0) {
+          final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
+          final DateTime paymentDate = createdAtTimestamp?.toDate() ?? record.createdAt;
+          final dateString = '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}-${paymentDate.day.toString().padLeft(2, '0')}';
+
+          final dailyRef = _db
+              .collection('agents')
+              .doc(agentId)
+              .collection('daily_collections')
+              .doc(dateString);
+
+          batch.set(dailyRef, {
+            'date': dateString,
+            'collectedAmount': FieldValue.increment(-amountToSubtract),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+
       // Delete from all_sale_payments
       batch.delete(doc.reference);
       // Delete from agent sales_payment
