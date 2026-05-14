@@ -78,123 +78,402 @@ class PdfService {
     final pdf = pw.Document();
 
     final effectivePaidAmount = paidAmount ?? record.paidAmount;
-    
+
     // Calculate values
-    final totalNoItems = record.items.fold(0, (sum, item) => sum + item.quantity);
-    final grossTotal = record.items.fold(0.0, (sum, item) => sum + item.totalAgentPrice);
+    final totalNoItems = record.items.fold(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
+    final grossTotal = record.items.fold(
+      0.0,
+      (sum, item) => sum + item.totalAgentPrice,
+    );
     final returnAmount = record.totalReturnAmount;
     final totalValue = grossTotal - returnAmount;
+    final change = effectivePaidAmount - totalValue;
+
+    // Format numbers without currency symbol
+    String formatNumber(double value) {
+      return value.toStringAsFixed(2);
+    }
 
     pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.roll80,
-        margin: const pw.EdgeInsets.all(10),
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            mainAxisSize: pw.MainAxisSize.min,
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 40),
+        build: (context) => [
+          // ── Header ── centered, full-width
+          pw.SizedBox(
+            width: double.infinity,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logo != null)
+                  pw.Container(
+                    height: 120,
+                    width: 300,
+                    child: pw.Image(logo, fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.Text(
+                    'WON MART',
+                    style: pw.TextStyle(
+                      fontSize: 54,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                pw.Text(
+                  'Quality Distribution & Logistics',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  '206, Rolawatta, Meegama',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Text(
+                  '0713148203',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 6),
+
+          // ── Shop name ── centered, full-width
+          pw.SizedBox(
+            width: double.infinity,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  shop?.name ?? record.shopName,
+                  style: pw.TextStyle(
+                    fontSize: 36,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                if (shop?.address != null && shop!.address.isNotEmpty)
+                  pw.Text(
+                    shop.address,
+                    style: pw.TextStyle(
+                      fontSize: 32,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 6),
+
+          // ── Invoice details ── left-aligned
+          pw.Text(
+            'Invoice: ${record.id.substring(0, 8)}',
+            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Staff: $agentName',
+            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            "Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}",
+            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Divider(thickness: 0.5),
+          pw.SizedBox(height: 4),
+
+          // ── Table header ── full-width via FlexColumnWidth
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(3.2),
+              1: pw.FlexColumnWidth(1.0),
+              2: pw.FlexColumnWidth(1.8),
+              3: pw.FlexColumnWidth(1.8),
+            },
             children: [
-              pw.Text('WON MART', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-              pw.Text('Quality Distribution & Logistics', style: const pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 5),
-              pw.Text('206, Rolawatta, Meegama', style: const pw.TextStyle(fontSize: 8)),
-              pw.Text('0713148203', style: const pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              pw.SizedBox(height: 5),
-              pw.Text(shop?.name ?? record.shopName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.Text(shop?.address ?? '', style: const pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              pw.SizedBox(height: 5),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              pw.TableRow(
                 children: [
-                  pw.Text('Invoice: ${record.id.substring(0, 8)}', style: const pw.TextStyle(fontSize: 8)),
-                  pw.Text('Staff: $agentName', style: const pw.TextStyle(fontSize: 8)),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    child: pw.Text(
+                      'Item',
+                      style: pw.TextStyle(
+                        fontSize: 26,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    child: pw.Text(
+                      'Qty',
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(
+                        fontSize: 26,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    child: pw.Text(
+                      'Price',
+                      textAlign: pw.TextAlign.right,
+                      style: pw.TextStyle(
+                        fontSize: 26,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    child: pw.Text(
+                      'Amt',
+                      textAlign: pw.TextAlign.right,
+                      style: pw.TextStyle(
+                        fontSize: 26,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}', style: const pw.TextStyle(fontSize: 8)),
-                ],
-              ),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              // Items Table
-              pw.Table(
-                columnWidths: {
-                  0: const pw.FlexColumnWidth(3),
-                  1: const pw.FlexColumnWidth(1),
-                  2: const pw.FlexColumnWidth(1.5),
-                  3: const pw.FlexColumnWidth(1.5),
+            ],
+          ),
+          pw.Divider(thickness: 0.5),
+          pw.SizedBox(height: 2),
+
+          // ── Items ── each row is a full-width pw.Table row
+          ...record.items.map(
+            (item) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 6),
+              child: pw.Table(
+                columnWidths: const {
+                  0: pw.FlexColumnWidth(3.2),
+                  1: pw.FlexColumnWidth(1.0),
+                  2: pw.FlexColumnWidth(1.8),
+                  3: pw.FlexColumnWidth(1.8),
                 },
                 children: [
                   pw.TableRow(
                     children: [
-                      pw.Text('Item', style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('Qty', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('Price', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('Amt', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            item.productName,
+                            style: pw.TextStyle(
+                              fontSize: 28,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                            maxLines: 3,
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            '  ${item.productId.substring(item.productId.length > 6 ? item.productId.length - 6 : 0)}',
+                            style: pw.TextStyle(
+                              fontSize: 22,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.Text(
+                        '${item.quantity}',
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: 28,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        formatNumber(item.agentPrice),
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                          fontSize: 28,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        formatNumber(item.totalAgentPrice),
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                          fontSize: 28,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
-                  ...record.items.map((item) => pw.TableRow(
-                    children: [
-                      pw.Text(item.productName, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('${item.quantity}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('Rs${_currency.format(item.agentPrice)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text('Rs${_currency.format(item.totalAgentPrice)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                    ],
-                  )),
-                ]
+                ],
               ),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Items: $totalNoItems', style: const pw.TextStyle(fontSize: 8)),
-                  pw.Text('Subtotal: Rs${_currency.format(grossTotal)}', style: const pw.TextStyle(fontSize: 8)),
-                ]
-              ),
-              if (returnAmount > 0)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.end,
-                  children: [
-                    pw.Text('Returns: -Rs${_currency.format(returnAmount)}', style: const pw.TextStyle(fontSize: 8)),
-                  ]
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Divider(thickness: 0.5),
+          pw.SizedBox(height: 4),
+
+          // ── Items count & Subtotal ──
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Items: $totalNoItems',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
                 ),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Total:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('Rs${_currency.format(totalValue)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                ]
               ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Cash:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('Rs${_currency.format(effectivePaidAmount)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                ]
-              ),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-              pw.SizedBox(height: 5),
-              pw.Text('Thank You -', style: const pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 5),
-              pw.BarcodeWidget(
-                data: record.id,
-                width: 100,
-                height: 30,
-                barcode: pw.Barcode.code128(),
-                drawText: false,
+              pw.Text(
+                'Subtotal:',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
             ],
-          );
-        },
+          ),
+          pw.SizedBox(height: 1),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Text(
+                formatNumber(grossTotal),
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (returnAmount > 0) ...[
+            pw.SizedBox(height: 2),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Returns:',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Text(
+                  '-${formatNumber(returnAmount)}',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          pw.SizedBox(height: 4),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 4),
+
+          // ── Total ── larger, bold
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Total:',
+                style: pw.TextStyle(
+                  fontSize: 36,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                formatNumber(totalValue),
+                style: pw.TextStyle(
+                  fontSize: 36,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 3),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Cash:',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                formatNumber(effectivePaidAmount),
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 2),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Change:',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                formatNumber(change != 0 ? change.abs() : 0),
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 6),
+
+          // ── Footer ── centered, full-width
+          pw.SizedBox(
+            width: double.infinity,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  'Thank You',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 6),
+                pw.BarcodeWidget(
+                  data: record.id,
+                  width: 250,
+                  height: 80,
+                  barcode: pw.Barcode.code128(),
+                  drawText: false,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
 
