@@ -100,9 +100,10 @@ class PdfService {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 40),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 5),
         build: (context) => [
           // ── Header ── centered, full-width
+          pw.SizedBox(height: 70),
           pw.SizedBox(
             width: double.infinity,
             child: pw.Column(
@@ -182,15 +183,15 @@ class PdfService {
           // ── Invoice details ── left-aligned
           pw.Text(
             'Invoice: ${record.id.substring(0, 8)}',
-            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
           ),
           pw.Text(
             'Staff: $agentName',
-            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
           ),
           pw.Text(
             "Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}",
-            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 6),
           pw.Divider(thickness: 0.5),
