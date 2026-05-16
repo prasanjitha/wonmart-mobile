@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -261,7 +262,7 @@ class PdfService {
           // ── Items ── each row is a full-width pw.Table row
           ...record.items.map(
             (item) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 6),
+              padding: const pw.EdgeInsets.only(bottom: 13),
               child: pw.Table(
                 columnWidths: const {
                   0: pw.FlexColumnWidth(3.2),
@@ -276,21 +277,21 @@ class PdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            item.productName,
+                            _formatItemName(item.productName),
                             style: pw.TextStyle(
                               fontSize: 28,
                               fontWeight: pw.FontWeight.bold,
                             ),
                             maxLines: 3,
                           ),
-                          pw.SizedBox(height: 2),
-                          pw.Text(
-                            '  ${item.productId.substring(item.productId.length > 6 ? item.productId.length - 6 : 0)}',
-                            style: pw.TextStyle(
-                              fontSize: 22,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
+                          // pw.SizedBox(height: 2),
+                          // pw.Text(
+                          //   '  ${item.productId.substring(item.productId.length > 6 ? item.productId.length - 6 : 0)}',
+                          //   style: pw.TextStyle(
+                          //     fontSize: 22,
+                          //     fontWeight: pw.FontWeight.bold,
+                          //   ),
+                          // ),
                         ],
                       ),
                       pw.Text(
@@ -481,6 +482,26 @@ class PdfService {
     return pdf.save();
   }
 
+  static String _formatItemName(String originalName) {
+    // 1. Remove non-ASCII characters (removes Sinhala/Tamil text)
+    String name = originalName.replaceAll(RegExp(r'[^\x00-\x7F]'), '').trim();
+
+    // 2. Clean up trailing hyphens or empty parens left by removing Sinhala
+    name = name.replaceAll(RegExp(r'\s*-\s*$'), '').trim();
+    name = name.replaceAll(RegExp(r'\(\s*\)'), '').trim();
+
+    // 3. Remove leading codes (e.g. "12345 - ", "PRD123 - ", "12345 ")
+    name = name.replaceAll(RegExp(r'^[\w\d]+\s*-\s*'), '').trim();
+    name = name.replaceAll(RegExp(r'^\d+\s+'), '').trim();
+
+    // 4. Remove trailing codes (e.g. " - 080427" or " - CODE123")
+    name = name.replaceAll(RegExp(r'\s*-\s*[\w\d]+\s*$'), '').trim();
+
+    log("formatted name: $name");
+
+    return name.isEmpty ? originalName : name;
+  }
+
   static pw.Widget _buildHeader(pw.ImageProvider? logo) {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -611,7 +632,7 @@ class PdfService {
           item.productId.length > 10
               ? '${item.productId.substring(0, 10)}...'
               : item.productId,
-          item.productName,
+          _formatItemName(item.productName),
           _currency.format(item.price),
           item.quantity,
           _currency.format(item.agentPrice),
