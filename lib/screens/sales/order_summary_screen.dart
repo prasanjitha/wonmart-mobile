@@ -35,6 +35,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   String _paymentType = 'Cash';
   String _paymentStatus = 'Partial Payment';
   String _generatedRecordId = '';
+  SalesRecordModel? _generatedRecord;
   bool _isSaving = false;
   bool _showDetails = false;
   String _agentName = 'Agent';
@@ -123,7 +124,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       if (_paymentStatus == 'Partial Payment') dbStatus = 'partial';
       if (_paymentStatus == 'Not Paid') dbStatus = 'pending';
 
-      final docId = await _salesRecordService.issueOrderWithPayment(
+      final savedRecord = await _salesRecordService.issueOrderWithPayment(
         agentId: agentId,
         agentName: _agentName,
         record: widget.record,
@@ -133,7 +134,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       );
 
       if (!mounted) return;
-      setState(() => _generatedRecordId = docId);
+      setState(() {
+        _generatedRecord = savedRecord;
+        _generatedRecordId = savedRecord.id;
+      });
       _showSuccessPopup();
     } catch (e) {
       if (mounted) {
@@ -736,7 +740,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         debugPrint('Error loading logo: $e');
       }
 
-      final recordToPrint = SalesRecordModel(
+      final recordToPrint = _generatedRecord ?? SalesRecordModel(
         id: _generatedRecordId.isNotEmpty ? _generatedRecordId : 'PENDING_1234',
         shopId: widget.record.shopId,
         shopName: widget.record.shopName,

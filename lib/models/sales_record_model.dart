@@ -9,6 +9,9 @@ class SalesRecordModel {
   final double totalAmount;
   final double totalReturnAmount;
   final DateTime createdAt;
+  final String paymentStatus;
+  final double paidAmount;
+  final int? invoiceNo;
 
   SalesRecordModel({
     required this.id,
@@ -21,10 +24,8 @@ class SalesRecordModel {
     required this.createdAt,
     this.paymentStatus = 'pending', // pending, partial, completed
     this.paidAmount = 0.0,
+    this.invoiceNo,
   });
-
-  final String paymentStatus;
-  final double paidAmount;
 
   factory SalesRecordModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -43,6 +44,7 @@ class SalesRecordModel {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paymentStatus: data['paymentStatus'] ?? 'pending',
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0.0,
+      invoiceNo: (data['invoiceNo'] as num?)?.toInt(),
     );
   }
 
@@ -56,6 +58,7 @@ class SalesRecordModel {
     'paymentStatus': paymentStatus,
     'paidAmount': paidAmount,
     'createdAt': FieldValue.serverTimestamp(),
+    if (invoiceNo != null) 'invoiceNo': invoiceNo,
   };
 }
 

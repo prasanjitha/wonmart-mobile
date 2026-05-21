@@ -32,7 +32,7 @@ class SalesRecordService {
     });
   }
 
-  Future<String> issueOrderWithPayment({
+  Future<SalesRecordModel> issueOrderWithPayment({
     required String agentId,
     required String agentName,
     required SalesRecordModel record,
@@ -61,6 +61,38 @@ class SalesRecordService {
 
     // 2. Generate Doc ID for Sales Record
     final docId = _db.collection('dummy').doc().id;
+
+    // 2b. Query the next invoice number sequentially for this agent
+    int nextInvoiceNo = 1;
+    try {
+      final lastRecords = await _salesRecords(agentId)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+      if (lastRecords.docs.isNotEmpty) {
+        final lastData = lastRecords.docs.first.data() as Map<String, dynamic>;
+        final lastInvoiceNoVal = lastData['invoiceNo'];
+        if (lastInvoiceNoVal is int) {
+          nextInvoiceNo = lastInvoiceNoVal + 1;
+        } else if (lastInvoiceNoVal is String) {
+          final parsed = int.tryParse(lastInvoiceNoVal);
+          if (parsed != null) {
+            nextInvoiceNo = parsed + 1;
+          }
+        } else {
+          final countSnap = await _salesRecords(agentId).count().get();
+          nextInvoiceNo = (countSnap.count ?? 0) + 1;
+        }
+      }
+    } catch (e) {
+      try {
+        final countSnap = await _salesRecords(agentId).count().get();
+        nextInvoiceNo = (countSnap.count ?? 0) + 1;
+      } catch (_) {
+        nextInvoiceNo = 1;
+      }
+    }
+
     final updatedRecord = SalesRecordModel(
       id: docId,
       shopId: record.shopId,
@@ -72,6 +104,7 @@ class SalesRecordService {
       createdAt: record.createdAt,
       paymentStatus: paymentStatus,
       paidAmount: paidAmount,
+      invoiceNo: nextInvoiceNo,
     );
 
     final batch = _db.batch();
@@ -143,6 +176,7 @@ class SalesRecordService {
       'totalAmount': record.totalAmount,
       'totalReturnAmount': record.totalReturnAmount,
       'updatedAt': FieldValue.serverTimestamp(),
+      'invoiceNo': nextInvoiceNo,
     };
 
     // Root collection: all_sale_payments
@@ -188,7 +222,7 @@ class SalesRecordService {
       // Ignored for offline sync support
     });
 
-    return docId;
+    return updatedRecord;
   }
 
   Stream<List<SalesRecordModel>> watchSalesRecords(String agentId) {
@@ -425,12 +459,15 @@ class SalesRecordService {
       final data = doc.data() as Map<String, dynamic>?;
 
       if (data != null) {
-        final double amountToSubtract = (data['paidAmount'] ?? data['payAmount'] ?? 0.0).toDouble();
+        final double amountToSubtract =
+            (data['paidAmount'] ?? data['payAmount'] ?? 0.0).toDouble();
 
         if (amountToSubtract > 0) {
           final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
-          final DateTime paymentDate = createdAtTimestamp?.toDate() ?? record.createdAt;
-          final dateString = '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}-${paymentDate.day.toString().padLeft(2, '0')}';
+          final DateTime paymentDate =
+              createdAtTimestamp?.toDate() ?? record.createdAt;
+          final dateString =
+              '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}-${paymentDate.day.toString().padLeft(2, '0')}';
 
           final dailyRef = _db
               .collection('agents')

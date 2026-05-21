@@ -85,7 +85,7 @@ class PdfInvoiceService {
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
-                        'ID: #${record.id.substring(0, 8).toUpperCase()}',
+                        'ID: #${record.invoiceNo != null ? record.invoiceNo!.toString().padLeft(6, '0') : (record.id.length >= 8 ? record.id.substring(0, 8) : record.id).toUpperCase()}',
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                     ],
@@ -284,7 +284,7 @@ class PdfInvoiceService {
     final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
     final message = Uri.encodeComponent(
       'Hello! Please find your invoice for order '
-      '#${record.id.substring(0, 8).toUpperCase()} '
+      '#${record.invoiceNo != null ? record.invoiceNo!.toString().padLeft(6, '0') : (record.id.length >= 8 ? record.id.substring(0, 8) : record.id).toUpperCase()} '
       'from Wonmart. Total: Rs ${_currency.format(record.totalAmount)}',
     );
     final url = Uri.parse('https://wa.me/$cleanPhone?text=$message');
@@ -299,7 +299,7 @@ class PdfInvoiceService {
     await Printing.sharePdf(
       bytes: bytes,
       filename:
-          'invoice_${record.id.substring(0, 8)}_${record.shopName.replaceAll(' ', '_')}.pdf',
+          'invoice_${record.invoiceNo != null ? record.invoiceNo!.toString().padLeft(6, '0') : (record.id.length >= 8 ? record.id.substring(0, 8) : record.id)}_${record.shopName.replaceAll(' ', '_')}.pdf',
     );
   }
 
@@ -434,7 +434,7 @@ class PdfInvoiceService {
                         'Receipt ID: #${payment.id.toUpperCase().substring(0, 8)}',
                       ),
                       pw.Text(
-                        'Order ID: #${payment.salesRecordId.toUpperCase().substring(0, 8)}',
+                        'Order ID: #${record.invoiceNo != null ? record.invoiceNo!.toString().padLeft(6, '0') : (record.id.length >= 8 ? record.id.substring(0, 8) : record.id).toUpperCase()}',
                       ),
                       pw.Text('Date: $date'),
                       pw.Text('Status: ${payment.status.toUpperCase()}'),

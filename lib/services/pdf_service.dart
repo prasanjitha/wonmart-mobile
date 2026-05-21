@@ -76,6 +76,11 @@ class PdfService {
     String? paymentType,
     pw.ImageProvider? logo,
   }) async {
+    final ByteData fontData = await rootBundle.load(
+      "assets/fonts/Roboto-Medium.ttf",
+    );
+    final pw.Font customMediumFont = pw.Font.ttf(fontData);
+
     final pdf = pw.Document();
 
     final effectivePaidAmount = paidAmount ?? record.paidAmount;
@@ -98,105 +103,133 @@ class PdfService {
       return value.toStringAsFixed(2);
     }
 
+    pw.TableRow buildDetailRow(String key, String value) {
+      return pw.TableRow(
+        children: [
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            child: pw.Text(
+              key,
+              style: pw.TextStyle(fontSize: 26, font: customMediumFont),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            child: pw.Text(
+              ': ',
+              style: pw.TextStyle(fontSize: 26, font: customMediumFont),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            child: pw.Text(
+              value,
+              style: pw.TextStyle(fontSize: 26, font: customMediumFont),
+            ),
+          ),
+        ],
+      );
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(horizontal: 5),
         build: (context) => [
           // ── Header ── centered, full-width
-          pw.SizedBox(height: 70),
+          pw.SizedBox(height: 60),
           pw.SizedBox(
             width: double.infinity,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                if (logo != null)
+                if (logo != null) ...[
                   pw.Container(
-                    height: 120,
+                    height: 60,
                     width: 300,
                     child: pw.Image(logo, fit: pw.BoxFit.contain),
-                  )
-                else
-                  pw.Text(
-                    'WON MART',
-                    style: pw.TextStyle(
-                      fontSize: 54,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
                   ),
+                  pw.SizedBox(height: 2),
+                ],
                 pw.Text(
-                  'Quality Distribution & Logistics',
+                  'Won Mart (Pvt) Ltd',
+                  textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                     fontSize: 32,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Text(
-                  '206, Rolawatta, Meegama',
-                  style: pw.TextStyle(
-                    fontSize: 32,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                  '206, Rolawatta, Meegama, Dharga Town',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: customMediumFont, fontSize: 24),
                 ),
+                pw.SizedBox(height: 4),
                 pw.Text(
-                  '0713148203',
-                  style: pw.TextStyle(
-                    fontSize: 32,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                  '+94 766262903  |  +94 772676070  |  +94 765381520',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: customMediumFont, fontSize: 20),
                 ),
               ],
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Center(
+            child: pw.Text(
+              '-REPRINT-',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 8),
+
+          // ── Invoice details ── key-value layout
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.8),
+              1: pw.FlexColumnWidth(0.4),
+              2: pw.FlexColumnWidth(4.0),
+            },
+            children: [
+              buildDetailRow('Customer Name', shop?.name ?? record.shopName),
+              buildDetailRow('Address', shop?.address ?? '-'),
+              buildDetailRow('Vat Reg. No', '-'),
+              buildDetailRow('Phone', shop?.phone ?? '-'),
+              buildDetailRow('Bill Type', paymentType ?? 'Cash'),
+              buildDetailRow(
+                'Date',
+                DateFormat('d MMM yyyy').format(record.createdAt),
+              ),
+              buildDetailRow(
+                'Time',
+                DateFormat('hh:mm a').format(record.createdAt),
+              ),
+              buildDetailRow(
+                'Invoice No.',
+                record.invoiceNo != null
+                    ? record.invoiceNo!.toString().padLeft(6, '0')
+                    : (record.id.length >= 8 ? record.id.substring(0, 8) : record.id),
+              ),
+              buildDetailRow('Sales Order No.', '-'),
+              buildDetailRow('Sales Rep.', agentName),
+              buildDetailRow('Phone', '-'),
+              buildDetailRow('Credit Days', '-'),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 6),
+          pw.Center(
+            child: pw.Text(
+              'INVOICED PRODUCTS',
+              style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold),
             ),
           ),
           pw.SizedBox(height: 6),
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
           pw.SizedBox(height: 6),
-
-          // ── Shop name ── centered, full-width
-          pw.SizedBox(
-            width: double.infinity,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  shop?.name ?? record.shopName,
-                  style: pw.TextStyle(
-                    fontSize: 36,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                if (shop?.address != null && shop!.address.isNotEmpty)
-                  pw.Text(
-                    shop.address,
-                    style: pw.TextStyle(
-                      fontSize: 32,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 6),
-          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
-          pw.SizedBox(height: 6),
-
-          // ── Invoice details ── left-aligned
-          pw.Text(
-            'Invoice: ${record.id.substring(0, 8)}',
-            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.Text(
-            'Staff: $agentName',
-            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.Text(
-            "Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}",
-            style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 6),
-          pw.Divider(thickness: 0.5),
-          pw.SizedBox(height: 4),
 
           // ── Table header ── full-width via FlexColumnWidth
           pw.Table(
@@ -277,7 +310,7 @@ class PdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            _formatItemName(item.productName),
+                            (item.productName),
                             style: pw.TextStyle(
                               fontSize: 28,
                               fontWeight: pw.FontWeight.bold,
@@ -432,7 +465,7 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Change:',
+                'Credit:',
                 style: pw.TextStyle(
                   fontSize: 32,
                   fontWeight: pw.FontWeight.bold,
@@ -451,30 +484,48 @@ class PdfService {
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
           pw.SizedBox(height: 6),
 
-          // ── Footer ── centered, full-width
-          pw.SizedBox(
-            width: double.infinity,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'Thank You',
-                  style: pw.TextStyle(
-                    fontSize: 32,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+          // ── Footer ──
+          pw.SizedBox(height: 30),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Expanded(
+                child: pw.Text(
+                  '* GOODS RECIEVED IN GOOD\nCONDITION *',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: customMediumFont, fontSize: 24),
                 ),
-                pw.SizedBox(height: 6),
-                pw.BarcodeWidget(
-                  data: record.id,
-                  width: 250,
-                  height: 80,
-                  barcode: pw.Barcode.code128(),
-                  drawText: false,
+              ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Divider(
+                      thickness: 0.5,
+                      borderStyle: pw.BorderStyle.dashed,
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'SIGNATURE OF CUSTOMER',
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(font: customMediumFont, fontSize: 24),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+          pw.SizedBox(height: 12),
+          pw.Center(
+            child: pw.Text(
+              'Thank You !',
+              style: pw.TextStyle(fontSize: 30, fontWeight: pw.FontWeight.bold),
             ),
           ),
+          pw.SizedBox(height: 16),
         ],
       ),
     );
@@ -540,7 +591,7 @@ class PdfService {
             ),
             pw.Text('206, Rolawatta, Meegama, Dharga Town'),
             pw.Text('Email: info.wonm@gmail.com'),
-            pw.Text('Phone: +94 713 148 203'),
+            pw.Text('Phone: +94 766262903, +94 772676070, +94 765381520'),
           ],
         ),
       ],
@@ -601,7 +652,9 @@ class PdfService {
                 ),
               ),
               pw.SizedBox(height: 4),
-              pw.Text('Invoice No: ${record.id}'),
+              pw.Text(
+                'Invoice No: ${record.invoiceNo != null ? record.invoiceNo!.toString().padLeft(6, '0') : record.id}',
+              ),
               pw.Text(
                 'Date & Time: ${DateFormat('M/d/y h:mm:ss a').format(record.createdAt)}',
               ),
