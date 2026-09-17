@@ -359,22 +359,70 @@ class PdfService {
               ),
             ],
           ),
-          if (returnAmount > 0) ...[
-            pw.SizedBox(height: 2),
+          if (record.returnItems.isNotEmpty) ...[
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Returns:',
+              style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 3),
+            pw.Table(
+              columnWidths: const {
+                0: pw.FlexColumnWidth(3.2),
+                1: pw.FlexColumnWidth(1.0),
+                2: pw.FlexColumnWidth(1.8),
+                3: pw.FlexColumnWidth(1.8),
+              },
+              children: [
+                pw.TableRow(
+                  children: [
+                    _buildThermalTableHeader('Item'),
+                    _buildThermalTableHeader('Qty', align: pw.TextAlign.center),
+                    _buildThermalTableHeader(
+                      'Price',
+                      align: pw.TextAlign.right,
+                    ),
+                    _buildThermalTableHeader('Amt', align: pw.TextAlign.right),
+                  ],
+                ),
+                ...record.returnItems.map(
+                  (item) => pw.TableRow(
+                    children: [
+                      _buildThermalTableCell(item.productName),
+                      _buildThermalTableCell(
+                        item.quantity.toString(),
+                        align: pw.TextAlign.center,
+                      ),
+                      _buildThermalTableCell(
+                        formatNumber(item.price),
+                        align: pw.TextAlign.right,
+                      ),
+                      _buildThermalTableCell(
+                        formatNumber(item.totalPrice),
+                        align: pw.TextAlign.right,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 3),
+            pw.Divider(thickness: 0.5),
+            pw.SizedBox(height: 3),
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'Returns:',
+                  'Total Returns:',
                   style: pw.TextStyle(
-                    fontSize: 32,
+                    fontSize: 30,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
                 pw.Text(
                   '-${formatNumber(returnAmount)}',
                   style: pw.TextStyle(
-                    fontSize: 32,
+                    fontSize: 30,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
@@ -449,6 +497,47 @@ class PdfService {
           pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
           pw.SizedBox(height: 6),
 
+          // Complimentary samples are shown separately so they are visible on
+          // the bill without being included in the total charged to the shop.
+          if (record.sampleItems.isNotEmpty) ...[
+            pw.Text(
+              'Add Sample Product',
+              style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 4),
+            ...record.sampleItems.map(
+              (item) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 3),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Text(
+                        item.productName,
+                        maxLines: 2,
+                        style: pw.TextStyle(
+                          fontSize: 26,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(width: 12),
+                    pw.Text(
+                      'Qty: ${item.quantity}',
+                      style: pw.TextStyle(
+                        fontSize: 26,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
+            pw.SizedBox(height: 6),
+          ],
+
           // ── Footer ── centered, full-width
           pw.SizedBox(
             width: double.infinity,
@@ -478,6 +567,35 @@ class PdfService {
     );
 
     return pdf.save();
+  }
+
+  static pw.Widget _buildThermalTableHeader(
+    String text, {
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(fontSize: 23, fontWeight: pw.FontWeight.bold),
+      ),
+    );
+  }
+
+  static pw.Widget _buildThermalTableCell(
+    String text, {
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        maxLines: 2,
+        style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+      ),
+    );
   }
 
   static pw.Widget _buildHeader(pw.ImageProvider? logo) {

@@ -355,6 +355,49 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     ),
                   ),
                 ),
+                if (widget.record.sampleItems.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sample Items (Complimentary)',
+                    style: GoogleFonts.inter(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...widget.record.sampleItems.map(
+                    (item) => Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardDarkBackground.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.productName,
+                              style: GoogleFonts.inter(
+                                color: Colors.orange,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${item.quantity} ${item.unit} · Free',
+                            style: GoogleFonts.inter(
+                              color: Colors.orange.withOpacity(0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 if (widget.record.returnItems.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -741,6 +784,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         shopId: widget.record.shopId,
         shopName: widget.record.shopName,
         items: widget.record.items,
+        sampleItems: widget.record.sampleItems,
         returnItems: widget.record.returnItems,
         totalAmount: widget.record.totalAmount,
         totalReturnAmount: widget.record.totalReturnAmount,

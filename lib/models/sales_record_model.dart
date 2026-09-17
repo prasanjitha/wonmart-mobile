@@ -5,6 +5,10 @@ class SalesRecordModel {
   final String shopId;
   final String shopName;
   final List<SalesRecordItem> items;
+
+  /// Products issued free of charge. Kept separate so they do not change the
+  /// sale total or payment calculations, while remaining auditable.
+  final List<SalesRecordItem> sampleItems;
   final List<SalesRecordItem> returnItems;
   final double totalAmount;
   final double totalReturnAmount;
@@ -15,6 +19,7 @@ class SalesRecordModel {
     required this.shopId,
     required this.shopName,
     required this.items,
+    this.sampleItems = const [],
     this.returnItems = const [],
     required this.totalAmount,
     this.totalReturnAmount = 0.0,
@@ -35,6 +40,9 @@ class SalesRecordModel {
       items: (data['items'] as List<dynamic>? ?? [])
           .map((i) => SalesRecordItem.fromMap(i as Map<String, dynamic>))
           .toList(),
+      sampleItems: (data['sampleItems'] as List<dynamic>? ?? [])
+          .map((i) => SalesRecordItem.fromMap(i as Map<String, dynamic>))
+          .toList(),
       returnItems: (data['returnItems'] as List<dynamic>? ?? [])
           .map((i) => SalesRecordItem.fromMap(i as Map<String, dynamic>))
           .toList(),
@@ -50,6 +58,7 @@ class SalesRecordModel {
     'shopId': shopId,
     'shopName': shopName,
     'items': items.map((i) => i.toMap()).toList(),
+    'sampleItems': sampleItems.map((i) => i.toMap()).toList(),
     'returnItems': returnItems.map((i) => i.toMap()).toList(),
     'totalAmount': totalAmount,
     'totalReturnAmount': totalReturnAmount,
