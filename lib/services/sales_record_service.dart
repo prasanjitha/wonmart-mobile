@@ -40,21 +40,21 @@ class SalesRecordService {
     required String paymentStatus,
     required double paidAmount,
   }) async {
-    // 1. Deduct Stock for ordered items
-    final Map<String, int> deductions = {
-      for (var item in record.items) item.productId: item.quantity,
-    };
+    // 1. Deduct stock for both charged and complimentary sample products.
+    // Aggregate duplicate product rows rather than allowing later rows to
+    // overwrite earlier quantities.
+    final Map<String, int> deductions = _aggregateQuantities([
+      ...record.items,
+      ...record.sampleItems,
+    ]);
     if (deductions.isNotEmpty) {
       await StoreService().deductStock(agentId, deductions);
     }
 
     // 1b. Add Stock for returned items (only if isAddedToStock is true)
-    final Map<String, int> additions = {
-      for (var item in record.returnItems.where(
-        (i) => i.isAddedToStock == true,
-      ))
-        item.productId: item.quantity,
-    };
+    final Map<String, int> additions = _aggregateQuantities(
+      record.returnItems.where((item) => item.isAddedToStock == true),
+    );
     if (additions.isNotEmpty) {
       await StoreService().addStock(agentId, additions);
     }
@@ -66,6 +66,7 @@ class SalesRecordService {
       shopId: record.shopId,
       shopName: record.shopName,
       items: record.items,
+      sampleItems: record.sampleItems,
       returnItems: record.returnItems,
       totalAmount: record.totalAmount,
       totalReturnAmount: record.totalReturnAmount,
@@ -122,6 +123,10 @@ class SalesRecordService {
         })
         .toList();
 
+    final List<Map<String, dynamic>> modifiedSampleItems = record.sampleItems
+        .map((item) => item.toMap())
+        .toList();
+
     final paymentData = {
       // Model requirements for backwards compatibility
       'id': paymentId,
@@ -135,6 +140,7 @@ class SalesRecordService {
       // Explicit fields required from screenshot
       'createdAt': FieldValue.serverTimestamp(),
       'items': modifiedItems,
+      'sampleItems': modifiedSampleItems,
       'returnItems': modifiedReturnItems,
       'paidAmount': paidAmount,
       'paymentStatus': paymentStatus,
@@ -379,21 +385,19 @@ class SalesRecordService {
     String agentId,
     SalesRecordModel record,
   ) async {
-    // 1. Add back stock for the sold items
-    final Map<String, int> additions = {
-      for (var item in record.items) item.productId: item.quantity,
-    };
+    // 1. Add back stock for charged and complimentary issued items.
+    final Map<String, int> additions = _aggregateQuantities([
+      ...record.items,
+      ...record.sampleItems,
+    ]);
     if (additions.isNotEmpty) {
       await StoreService().addStock(agentId, additions);
     }
 
     // 2. We could deduct the returned items if needed, but the instruction specifically implies adding back the sold items.
-    final Map<String, int> deductions = {
-      for (var item in record.returnItems.where(
-        (i) => i.isAddedToStock == true,
-      ))
-        item.productId: item.quantity,
-    };
+    final Map<String, int> deductions = _aggregateQuantities(
+      record.returnItems.where((item) => item.isAddedToStock == true),
+    );
     if (deductions.isNotEmpty) {
       await StoreService().deductStock(agentId, deductions);
     }
@@ -425,12 +429,15 @@ class SalesRecordService {
       final data = doc.data() as Map<String, dynamic>?;
 
       if (data != null) {
-        final double amountToSubtract = (data['paidAmount'] ?? data['payAmount'] ?? 0.0).toDouble();
+        final double amountToSubtract =
+            (data['paidAmount'] ?? data['payAmount'] ?? 0.0).toDouble();
 
         if (amountToSubtract > 0) {
           final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
-          final DateTime paymentDate = createdAtTimestamp?.toDate() ?? record.createdAt;
-          final dateString = '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}-${paymentDate.day.toString().padLeft(2, '0')}';
+          final DateTime paymentDate =
+              createdAtTimestamp?.toDate() ?? record.createdAt;
+          final dateString =
+              '${paymentDate.year}-${paymentDate.month.toString().padLeft(2, '0')}-${paymentDate.day.toString().padLeft(2, '0')}';
 
           final dailyRef = _db
               .collection('agents')
@@ -471,5 +478,15 @@ class SalesRecordService {
     batch.commit().catchError((e) {
       // Ignored for offline sync support
     });
+  }
+
+  Map<String, int> _aggregateQuantities(Iterable<SalesRecordItem> items) {
+    final quantities = <String, int>{};
+    for (final item in items) {
+      if (item.productId.isEmpty || item.quantity <= 0) continue;
+      quantities[item.productId] =
+          (quantities[item.productId] ?? 0) + item.quantity;
+    }
+    return quantities;
   }
 }

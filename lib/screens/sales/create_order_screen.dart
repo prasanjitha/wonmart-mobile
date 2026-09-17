@@ -38,6 +38,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   // Order items list
   final List<SalesRecordItem> _orderRows = [];
 
+  // Optional complimentary products issued with the order. These do not
+  // contribute to the shop price, but they do consume agent-store stock.
+  StoreItemModel? _selectedSampleProduct;
+  final TextEditingController _sampleQuantityController =
+      TextEditingController();
+  final List<SalesRecordItem> _sampleRows = [];
+
   // Return items state
   StoreItemModel? _selectedReturnProduct;
   final TextEditingController _returnQuantityController =
@@ -65,6 +72,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _marginController.dispose();
+    _sellerPriceController.dispose();
+    _sampleQuantityController.dispose();
+    _returnQuantityController.dispose();
+    _returnPriceController.dispose();
+    _otherReturnReasonController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -95,7 +114,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       ToastHelper.showTopRightToast(context, 'Enter a valid quantity');
       return;
     }
-    if (qty > _selectedProduct!.quantity) {
+    if (qty > _remainingQuantityFor(_selectedProduct!.id)) {
       ToastHelper.showTopRightToast(context, 'Not enough stock');
       return;
     }
@@ -137,6 +156,59 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       _marginController.clear();
       _sellerPriceController.clear();
       _selectedProduct = null;
+    });
+  }
+
+  int _remainingQuantityFor(String productId, {SalesRecordItem? excluding}) {
+    StoreItemModel? storeItem;
+    for (final item in _storeItems) {
+      if (item.id == productId) {
+        storeItem = item;
+        break;
+      }
+    }
+    if (storeItem == null) return 0;
+
+    final allocated = [..._orderRows, ..._sampleRows]
+        .where((item) => item.productId == productId && item != excluding)
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    return storeItem.quantity - allocated;
+  }
+
+  void _addSampleItem() {
+    if (_selectedSampleProduct == null) {
+      ToastHelper.showTopRightToast(context, 'Please select a sample product');
+      return;
+    }
+
+    final qty = int.tryParse(_sampleQuantityController.text) ?? 0;
+    if (qty <= 0) {
+      ToastHelper.showTopRightToast(context, 'Enter a valid quantity');
+      return;
+    }
+    if (qty > _remainingQuantityFor(_selectedSampleProduct!.id)) {
+      ToastHelper.showTopRightToast(context, 'Not enough stock');
+      return;
+    }
+
+    setState(() {
+      _sampleRows.add(
+        SalesRecordItem(
+          productId: _selectedSampleProduct!.id,
+          productName: _selectedSampleProduct!.productName,
+          quantity: qty,
+          unit: _selectedSampleProduct!.unit,
+          // Samples are not charged to the shop.
+          price: 0,
+          totalPrice: 0,
+          marginPercentage: 0,
+          agentPrice: 0,
+          totalAgentPrice: 0,
+          totalProfit: 0,
+        ),
+      );
+      _sampleQuantityController.clear();
+      _selectedSampleProduct = null;
     });
   }
 
@@ -203,6 +275,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   void _removeRow(int index) {
     setState(() => _orderRows.removeAt(index));
+  }
+
+  void _removeSampleRow(int index) {
+    setState(() => _sampleRows.removeAt(index));
   }
 
   void _removeReturnRow(int index) {
@@ -332,11 +408,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       return;
     }
 
+    final hasSampleProduct = _selectedSampleProduct != null;
+    final hasSampleQty = _sampleQuantityController.text.trim().isNotEmpty;
+    if (hasSampleProduct || hasSampleQty) {
+      ToastHelper.showTopRightToast(
+        context,
+        'You have an unsaved sample item. Please click "Add Item" first.',
+      );
+      return;
+    }
+
     final record = SalesRecordModel(
       id: '',
       shopId: _selectedShop!.id,
       shopName: _selectedShop!.name,
       items: _orderRows,
+      sampleItems: _sampleRows,
       returnItems: _returnRows,
       totalAmount: _total,
       totalReturnAmount: _totalReturnAmount,
@@ -462,7 +549,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                     (i) => DropdownMenuItem(
                                       value: i,
                                       child: Text(
-                                        '${i.productName} (Qty: ${i.quantity})',
+                                        '${i.productName} (Available: ${_remainingQuantityFor(i.id).clamp(0, i.quantity)})',
                                         style: GoogleFonts.inter(
                                           color: AppColors.textLight,
                                           fontSize: 14,
@@ -667,6 +754,115 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     ..._orderRows.asMap().entries.map(
                       (entry) => _buildOrderRow(entry.key),
                     ),
+
+                    const SizedBox(height: 20),
+
+                    // Optional Sample Product Section
+                    _buildSectionLabel('Add Sample Product (Optional)'),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardDarkBackground,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          DropdownButtonHideUnderline(
+                            child: DropdownButton<StoreItemModel>(
+                              value: _selectedSampleProduct,
+                              hint: Text(
+                                'Select a product',
+                                style: GoogleFonts.inter(
+                                  color: AppColors.textMuted,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              dropdownColor: AppColors.inputBackground,
+                              isExpanded: true,
+                              items: _storeItems
+                                  .map(
+                                    (item) => DropdownMenuItem(
+                                      value: item,
+                                      child: Text(
+                                        '${item.productName} (Available: ${_remainingQuantityFor(item.id).clamp(0, item.quantity)})',
+                                        style: GoogleFonts.inter(
+                                          color: AppColors.textLight,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) => setState(
+                                () => _selectedSampleProduct = value,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _sampleQuantityController,
+                                  keyboardType: TextInputType.number,
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textLight,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Qty',
+                                    hintStyle: GoogleFonts.inter(
+                                      color: AppColors.textMuted,
+                                      fontSize: 14,
+                                    ),
+                                    filled: true,
+                                    fillColor: AppColors.inputBackground,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: _addSampleItem,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF9800),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Add Item',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_sampleRows.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildSectionLabel('Sample Items'),
+                      ..._sampleRows.asMap().entries.map(
+                        (entry) => _buildSampleRow(entry.key),
+                      ),
+                    ],
 
                     const SizedBox(height: 20),
 
@@ -1053,6 +1249,51 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
+  Widget _buildSampleRow(int index) {
+    final item = _sampleRows[index];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardDarkBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.45)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.card_giftcard, color: Colors.orange),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.productName,
+                  style: GoogleFonts.inter(
+                    color: AppColors.textLight,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${item.quantity} ${item.unit} · Complimentary sample',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove sample item',
+            icon: const Icon(Icons.delete_outline, color: AppColors.primaryRed),
+            onPressed: () => _removeSampleRow(index),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrderRow(int index) {
     final item = _orderRows[index];
 
@@ -1343,6 +1584,19 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     double.tryParse(marginCtrl.text) ?? item.marginPercentage;
                 final sp =
                     double.tryParse(sellerPriceCtrl.text) ?? item.agentPrice;
+
+                if (q <= 0) {
+                  ToastHelper.showTopRightToast(
+                    context,
+                    'Enter a valid quantity',
+                  );
+                  return;
+                }
+                if (q >
+                    _remainingQuantityFor(item.productId, excluding: item)) {
+                  ToastHelper.showTopRightToast(context, 'Not enough stock');
+                  return;
+                }
 
                 _updateRow(
                   index,

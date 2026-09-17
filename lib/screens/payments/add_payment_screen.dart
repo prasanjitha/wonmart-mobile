@@ -190,6 +190,7 @@ class _AddPaymentScreenState extends State<AddPaymentScreen> {
           shopId: _selectedRecord!.shopId,
           shopName: _selectedRecord!.shopName,
           items: _selectedRecord!.items,
+          sampleItems: _selectedRecord!.sampleItems,
           totalAmount: _selectedRecord!.totalAmount,
           totalReturnAmount: _selectedRecord!.totalReturnAmount,
           createdAt: _selectedRecord!.createdAt,
