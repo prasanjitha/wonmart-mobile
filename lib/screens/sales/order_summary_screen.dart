@@ -35,9 +35,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   String _paymentType = 'Cash';
   String _paymentStatus = 'Partial Payment';
   String _generatedRecordId = '';
+  SalesRecordModel? _generatedRecord;
   bool _isSaving = false;
   bool _showDetails = false;
   String _agentName = 'Agent';
+  String _agentPhone = '';
   ShopModel? _shopDetails;
 
   final _currency = NumberFormat('#,##0.00', 'en_US');
@@ -77,6 +79,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       if (mounted) {
         setState(() {
           _agentName = profile['name'] ?? 'Agent';
+          _agentPhone = profile['phone']?.toString() ?? '';
         });
       }
     }
@@ -123,7 +126,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       if (_paymentStatus == 'Partial Payment') dbStatus = 'partial';
       if (_paymentStatus == 'Not Paid') dbStatus = 'pending';
 
-      final docId = await _salesRecordService.issueOrderWithPayment(
+      final savedRecord = await _salesRecordService.issueOrderWithPayment(
         agentId: agentId,
         agentName: _agentName,
         record: widget.record,
@@ -133,7 +136,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
       );
 
       if (!mounted) return;
-      setState(() => _generatedRecordId = docId);
+      setState(() {
+        _generatedRecord = savedRecord;
+        _generatedRecordId = savedRecord.id;
+      });
       _showSuccessPopup();
     } catch (e) {
       if (mounted) {
@@ -779,23 +785,28 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         debugPrint('Error loading logo: $e');
       }
 
-      final recordToPrint = SalesRecordModel(
-        id: _generatedRecordId.isNotEmpty ? _generatedRecordId : 'PENDING_1234',
-        shopId: widget.record.shopId,
-        shopName: widget.record.shopName,
-        items: widget.record.items,
-        sampleItems: widget.record.sampleItems,
-        returnItems: widget.record.returnItems,
-        totalAmount: widget.record.totalAmount,
-        totalReturnAmount: widget.record.totalReturnAmount,
-        createdAt: widget.record.createdAt,
-      );
+      final recordToPrint =
+          _generatedRecord ??
+          SalesRecordModel(
+            id: _generatedRecordId.isNotEmpty
+                ? _generatedRecordId
+                : 'PENDING_1234',
+            shopId: widget.record.shopId,
+            shopName: widget.record.shopName,
+            items: widget.record.items,
+            sampleItems: widget.record.sampleItems,
+            returnItems: widget.record.returnItems,
+            totalAmount: widget.record.totalAmount,
+            totalReturnAmount: widget.record.totalReturnAmount,
+            createdAt: widget.record.createdAt,
+          );
 
       final pdfBytes = isThermal
           ? await PdfService.generateThermalInvoice(
               record: recordToPrint,
               agentName: _agentName,
               agentId: agentId,
+              agentPhone: _agentPhone,
               shop: _shopDetails,
               paidAmount: currentPaidAmount,
               paymentStatus: _paymentStatus,

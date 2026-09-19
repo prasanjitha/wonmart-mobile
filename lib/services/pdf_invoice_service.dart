@@ -85,7 +85,7 @@ class PdfInvoiceService {
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
-                        'ID: #${record.id.substring(0, 8).toUpperCase()}',
+                        'Invoice No: #${record.invoiceNo?.toString() ?? (record.id.length >= 8 ? record.id.substring(0, 8).toUpperCase() : record.id)}',
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                     ],

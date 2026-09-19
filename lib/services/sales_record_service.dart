@@ -27,12 +27,10 @@ class SalesRecordService {
         .doc(docId);
     batch.set(shopSalesRef, record.toMap());
 
-    batch.commit().catchError((e) {
-      // Ignored for offline sync support
-    });
+    await batch.commit();
   }
 
-  Future<String> issueOrderWithPayment({
+  Future<SalesRecordModel> issueOrderWithPayment({
     required String agentId,
     required String agentName,
     required SalesRecordModel record,
@@ -61,6 +59,10 @@ class SalesRecordService {
 
     // 2. Generate Doc ID for Sales Record
     final docId = _db.collection('dummy').doc().id;
+
+    // Keep invoice numbers continuous for each agent. Older records may not
+    // have invoiceNo, so use the record count as a safe migration fallback.
+    final invoiceNo = await _getNextInvoiceNo(agentId);
     final updatedRecord = SalesRecordModel(
       id: docId,
       shopId: record.shopId,
@@ -73,6 +75,7 @@ class SalesRecordService {
       createdAt: record.createdAt,
       paymentStatus: paymentStatus,
       paidAmount: paidAmount,
+      invoiceNo: invoiceNo,
     );
 
     final batch = _db.batch();
@@ -149,6 +152,7 @@ class SalesRecordService {
       'totalAmount': record.totalAmount,
       'totalReturnAmount': record.totalReturnAmount,
       'updatedAt': FieldValue.serverTimestamp(),
+      'invoiceNo': invoiceNo,
     };
 
     // Root collection: all_sale_payments
@@ -190,11 +194,33 @@ class SalesRecordService {
       }, SetOptions(merge: true));
     }
 
-    batch.commit().catchError((e) {
-      // Ignored for offline sync support
-    });
+    // Do not report a completed sale until every mirrored payment and sales
+    // record has been queued successfully. Errors now reach the UI instead of
+    // being silently ignored.
+    await batch.commit();
 
-    return docId;
+    return updatedRecord;
+  }
+
+  Future<int> _getNextInvoiceNo(String agentId) async {
+    final records = _salesRecords(agentId);
+    final lastRecords = await records
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (lastRecords.docs.isEmpty) return 1;
+
+    final lastData = lastRecords.docs.first.data() as Map<String, dynamic>;
+    final lastInvoiceNo = lastData['invoiceNo'];
+    if (lastInvoiceNo is num) return lastInvoiceNo.toInt() + 1;
+    if (lastInvoiceNo is String) {
+      final parsed = int.tryParse(lastInvoiceNo);
+      if (parsed != null) return parsed + 1;
+    }
+
+    final count = await records.count().get();
+    return (count.count ?? 0) + 1;
   }
 
   Stream<List<SalesRecordModel>> watchSalesRecords(String agentId) {

@@ -13,6 +13,7 @@ class SalesRecordModel {
   final double totalAmount;
   final double totalReturnAmount;
   final DateTime createdAt;
+  final int? invoiceNo;
 
   SalesRecordModel({
     required this.id,
@@ -26,6 +27,7 @@ class SalesRecordModel {
     required this.createdAt,
     this.paymentStatus = 'pending', // pending, partial, completed
     this.paidAmount = 0.0,
+    this.invoiceNo,
   });
 
   final String paymentStatus;
@@ -51,6 +53,7 @@ class SalesRecordModel {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paymentStatus: data['paymentStatus'] ?? 'pending',
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0.0,
+      invoiceNo: (data['invoiceNo'] as num?)?.toInt(),
     );
   }
 
@@ -65,6 +68,7 @@ class SalesRecordModel {
     'paymentStatus': paymentStatus,
     'paidAmount': paidAmount,
     'createdAt': FieldValue.serverTimestamp(),
+    if (invoiceNo != null) 'invoiceNo': invoiceNo,
   };
 }
 

@@ -559,9 +559,21 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               ),
               const SizedBox(height: 20),
               ListTile(
-                leading: const Icon(Icons.description, color: AppColors.textLight),
-                title: Text('A4 Format', style: GoogleFonts.inter(color: AppColors.textLight)),
-                subtitle: Text('Standard full-page invoice', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                leading: const Icon(
+                  Icons.description,
+                  color: AppColors.textLight,
+                ),
+                title: Text(
+                  'A4 Format',
+                  style: GoogleFonts.inter(color: AppColors.textLight),
+                ),
+                subtitle: Text(
+                  'Standard full-page invoice',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _generateDetailedInvoice(record, isThermal: false);
@@ -569,9 +581,21 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               ),
               const Divider(color: AppColors.inputBorder),
               ListTile(
-                leading: const Icon(Icons.receipt_long, color: AppColors.textLight),
-                title: Text('Thermal Receipt', style: GoogleFonts.inter(color: AppColors.textLight)),
-                subtitle: Text('Mobile POS printer format', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                leading: const Icon(
+                  Icons.receipt_long,
+                  color: AppColors.textLight,
+                ),
+                title: Text(
+                  'Thermal Receipt',
+                  style: GoogleFonts.inter(color: AppColors.textLight),
+                ),
+                subtitle: Text(
+                  'Mobile POS printer format',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _generateDetailedInvoice(record, isThermal: true);
@@ -584,11 +608,15 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
     );
   }
 
-  Future<void> _generateDetailedInvoice(SalesRecordModel record, {bool isThermal = false}) async {
+  Future<void> _generateDetailedInvoice(
+    SalesRecordModel record, {
+    bool isThermal = false,
+  }) async {
     try {
       // 1. Load Agent Profile
       final profile = await _authService.getAgentProfile();
       final agentName = profile?['name'] ?? 'Agent';
+      final agentPhone = profile?['phone']?.toString() ?? '';
       final agentId = FirebaseAuth.instance.currentUser?.uid ?? 'N/A';
 
       // 2. Load Shop Details
@@ -611,6 +639,7 @@ class _SalesOrdersScreenState extends State<SalesOrdersScreen> {
               record: record,
               agentName: agentName,
               agentId: agentId,
+              agentPhone: agentPhone,
               shop: shop,
               paidAmount: record.paidAmount,
               paymentStatus: record.paymentStatus,

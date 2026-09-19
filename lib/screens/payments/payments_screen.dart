@@ -33,6 +33,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
   String get _agentId => FirebaseAuth.instance.currentUser?.uid ?? '';
   String _agentName = 'Agent';
+  String _agentPhone = '';
   pw.ImageProvider? _logoImage;
 
   ShopModel? _selectedShop;
@@ -50,7 +51,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   Future<void> _loadAgentInfo() async {
     final profile = await _authService.getAgentProfile();
     if (mounted && profile != null) {
-      setState(() => _agentName = profile['name'] ?? 'Agent');
+      setState(() {
+        _agentName = profile['name'] ?? 'Agent';
+        _agentPhone = profile['phone']?.toString() ?? '';
+      });
     }
   }
 
@@ -319,10 +323,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               ],
             ),
             const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showInvoiceFormatSelection(record),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showInvoiceFormatSelection(record),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.white.withOpacity(0.1)),
                   shape: RoundedRectangleBorder(
@@ -374,9 +378,21 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               ),
               const SizedBox(height: 20),
               ListTile(
-                leading: const Icon(Icons.description, color: AppColors.textLight),
-                title: Text('A4 Format', style: GoogleFonts.inter(color: AppColors.textLight)),
-                subtitle: Text('Standard full-page invoice', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                leading: const Icon(
+                  Icons.description,
+                  color: AppColors.textLight,
+                ),
+                title: Text(
+                  'A4 Format',
+                  style: GoogleFonts.inter(color: AppColors.textLight),
+                ),
+                subtitle: Text(
+                  'Standard full-page invoice',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _generateInvoice(record, isThermal: false);
@@ -384,9 +400,21 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               ),
               const Divider(color: AppColors.inputBorder),
               ListTile(
-                leading: const Icon(Icons.receipt_long, color: AppColors.textLight),
-                title: Text('Thermal Receipt', style: GoogleFonts.inter(color: AppColors.textLight)),
-                subtitle: Text('Mobile POS printer format', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12)),
+                leading: const Icon(
+                  Icons.receipt_long,
+                  color: AppColors.textLight,
+                ),
+                title: Text(
+                  'Thermal Receipt',
+                  style: GoogleFonts.inter(color: AppColors.textLight),
+                ),
+                subtitle: Text(
+                  'Mobile POS printer format',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _generateInvoice(record, isThermal: true);
@@ -399,7 +427,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     );
   }
 
-  Future<void> _generateInvoice(SalesRecordModel record, {bool isThermal = false}) async {
+  Future<void> _generateInvoice(
+    SalesRecordModel record, {
+    bool isThermal = false,
+  }) async {
     try {
       // Get full shop details if available
       final shop = _shops.firstWhere(
@@ -422,6 +453,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               record: record,
               agentName: _agentName,
               agentId: _agentId,
+              agentPhone: _agentPhone,
               shop: shop,
               logo: _logoImage,
             )
@@ -435,7 +467,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
       await Printing.layoutPdf(
         onLayout: (format) async => pdfBytes,
-        name: 'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
+        name:
+            'invoice_${record.shopName.replaceAll(' ', '_')}_${record.id.substring(0, 8)}.pdf',
       );
     } catch (e) {
       if (mounted) {

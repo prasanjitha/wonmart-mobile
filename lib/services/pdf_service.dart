@@ -49,6 +49,10 @@ class PdfService {
           ),
           pw.SizedBox(height: 30),
           _buildItemsTable(record.items),
+          if (record.returnItems.isNotEmpty) ...[
+            pw.SizedBox(height: 20),
+            _buildReturnItemsTable(record.returnItems),
+          ],
           pw.SizedBox(height: 30),
           _buildSummary(
             record,
@@ -57,6 +61,10 @@ class PdfService {
             paymentType,
           ),
           pw.Spacer(),
+          if (record.sampleItems.isNotEmpty) ...[
+            _buildSampleItemsTable(record.sampleItems),
+            pw.SizedBox(height: 20),
+          ],
           _buildFooter(),
         ],
       ),
@@ -69,6 +77,7 @@ class PdfService {
     required SalesRecordModel record,
     required String agentName,
     required String agentId,
+    String? agentPhone,
     ShopModel? shop,
     double? paidAmount,
     String? paymentStatus,
@@ -181,12 +190,29 @@ class PdfService {
 
           // ── Invoice details ── left-aligned
           pw.Text(
-            'Invoice: ${record.id.substring(0, 8)}',
+            'Invoice: ${_invoiceNumber(record)}',
             style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
           ),
-          pw.Text(
-            'Staff: $agentName',
-            style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold),
+          pw.RichText(
+            text: pw.TextSpan(
+              children: [
+                pw.TextSpan(
+                  text: 'Staff: $agentName',
+                  style: pw.TextStyle(
+                    fontSize: 32,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                if (agentPhone != null && agentPhone.trim().isNotEmpty)
+                  pw.TextSpan(
+                    text: ' - ${agentPhone.trim()}',
+                    style: pw.TextStyle(
+                      fontSize: 22,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
           ),
           pw.Text(
             "Time: ${DateFormat('yyyy-MM-dd HH:mm').format(record.createdAt)}",
@@ -281,14 +307,6 @@ class PdfService {
                               fontWeight: pw.FontWeight.bold,
                             ),
                             maxLines: 3,
-                          ),
-                          pw.SizedBox(height: 2),
-                          pw.Text(
-                            '  ${item.productId.substring(item.productId.length > 6 ? item.productId.length - 6 : 0)}',
-                            style: pw.TextStyle(
-                              fontSize: 22,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
                           ),
                         ],
                       ),
@@ -583,6 +601,11 @@ class PdfService {
     );
   }
 
+  static String _invoiceNumber(SalesRecordModel record) {
+    return record.invoiceNo?.toString() ??
+        (record.id.length >= 8 ? record.id.substring(0, 8) : record.id);
+  }
+
   static pw.Widget _buildThermalTableCell(
     String text, {
     pw.TextAlign align = pw.TextAlign.left,
@@ -697,7 +720,7 @@ class PdfService {
                 ),
               ),
               pw.SizedBox(height: 4),
-              pw.Text('Invoice No: ${record.id}'),
+              pw.Text('Invoice No: ${_invoiceNumber(record)}'),
               pw.Text(
                 'Date & Time: ${DateFormat('M/d/y h:mm:ss a').format(record.createdAt)}',
               ),
@@ -748,6 +771,90 @@ class PdfService {
         5: pw.Alignment.centerRight,
       },
     );
+  }
+
+  static pw.Widget _buildReturnItemsTable(List<SalesRecordItem> items) {
+    return _buildInvoiceSectionTable(
+      title: 'RETURN ITEMS',
+      headers: const ['Item Code', 'Description', 'Qty', 'Price', 'Amount'],
+      data: items
+          .map(
+            (item) => [
+              _shortProductId(item.productId),
+              item.productName,
+              item.quantity,
+              _currency.format(item.price),
+              _currency.format(item.totalPrice),
+            ],
+          )
+          .toList(),
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerRight,
+        3: pw.Alignment.centerRight,
+        4: pw.Alignment.centerRight,
+      },
+    );
+  }
+
+  static pw.Widget _buildSampleItemsTable(List<SalesRecordItem> items) {
+    return _buildInvoiceSectionTable(
+      title: 'ADD SAMPLE PRODUCT',
+      headers: const ['Item Code', 'Description', 'Qty', 'Unit'],
+      data: items
+          .map(
+            (item) => [
+              _shortProductId(item.productId),
+              item.productName,
+              item.quantity,
+              item.unit,
+            ],
+          )
+          .toList(),
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerRight,
+        3: pw.Alignment.centerLeft,
+      },
+    );
+  }
+
+  static pw.Widget _buildInvoiceSectionTable({
+    required String title,
+    required List<String> headers,
+    required List<List<dynamic>> data,
+    required Map<int, pw.Alignment> cellAlignments,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+        ),
+        pw.SizedBox(height: 6),
+        pw.TableHelper.fromTextArray(
+          headers: headers,
+          data: data,
+          headerStyle: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            fontSize: 10,
+          ),
+          cellStyle: const pw.TextStyle(fontSize: 9),
+          headerDecoration: const pw.BoxDecoration(color: tableHeaderGray),
+          cellHeight: 25,
+          cellAlignments: cellAlignments,
+        ),
+      ],
+    );
+  }
+
+  static String _shortProductId(String productId) {
+    return productId.length > 10
+        ? '${productId.substring(0, 10)}...'
+        : productId;
   }
 
   static pw.Widget _buildSummary(
